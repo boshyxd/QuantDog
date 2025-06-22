@@ -70,23 +70,53 @@ class ApiService {
   // Honeypot endpoints
   async getHoneypots(): Promise<Honeypot[]> {
     const honeypots = await this.fetchWithHandling('/honeypots');
+    console.log('Raw honeypots from backend:', honeypots);
+    console.log('Number of honeypots received:', honeypots.length);
     
     // Transform backend data to match frontend expectations
-    return honeypots.map((hp: any, index: number) => ({
-      ...hp,
-      symbol: index === 0 ? 'ETH' : index === 1 ? 'BTC' : 'QTC',
-      address: index === 0 ? '0x742d35...9e71' : index === 1 ? 'bc1qxy2k...gdjq' : 'q1x4rt...8h9p',
-      balance: '0.0000',
-      value: '$0.00',
-      change: index === 1 ? 15.2 : index === 2 ? -5.1 : 0,
-      starred: index === 1,
-      threatLevel: hp.threat_indicators.length > 0 ? 'high' : 
-                   hp.status === 'triggered' ? 'medium' : 'low',
-      protection: index % 2 === 0 ? 'ecdsa' : 'rsa',
-      lastActivity: hp.last_interaction ? 
-        new Date(hp.last_interaction).toLocaleString() : 
-        `${Math.floor(Math.random() * 24) + 1} hours ago`
-    }));
+    const transformed = honeypots.map((hp: any, index: number) => {
+      // Generate symbol based on blockchain type or default sequence
+      let symbol = 'QTC'; // default
+      if (hp.blockchain === 'ethereum') symbol = 'ETH';
+      else if (hp.blockchain === 'bitcoin') symbol = 'BTC';
+      else if (hp.blockchain === 'quantum') symbol = 'QTC';
+      else {
+        // For other cases, cycle through available symbols
+        const symbols = ['ETH', 'BTC', 'QTC', 'SOL', 'ADA', 'DOT'];
+        symbol = symbols[index % symbols.length];
+      }
+
+      // Generate mock address based on blockchain type
+      let address = 'q1x4rt...8h9p'; // default quantum
+      if (hp.blockchain === 'ethereum') {
+        address = `0x${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
+      } else if (hp.blockchain === 'bitcoin') {
+        address = `bc1q${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
+      } else {
+        address = `q${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
+      }
+
+      return {
+        ...hp,
+        symbol,
+        address,
+        balance: '0.0000',
+        value: '$0.00',
+        change: (Math.random() - 0.5) * 30, // Random change between -15 and +15
+        starred: Math.random() > 0.7, // 30% chance of being starred
+        threatLevel: hp.threat_indicators?.length > 0 ? 'high' : 
+                     hp.status === 'triggered' ? 'medium' : 
+                     hp.monitoring_sensitivity || 'low',
+        protection: hp.protection_type || 'ecdsa',
+        lastActivity: hp.last_interaction ? 
+          new Date(hp.last_interaction).toLocaleString() : 
+          `${Math.floor(Math.random() * 24) + 1} hours ago`
+      };
+    });
+    
+    console.log('Transformed honeypots for frontend:', transformed);
+    console.log('Number of transformed honeypots:', transformed.length);
+    return transformed;
   }
 
   async getHoneypotConfig(honeypotId: string): Promise<HoneypotConfig> {
@@ -111,6 +141,32 @@ class ApiService {
   async disableHoneypot(honeypotId: string): Promise<void> {
     await this.fetchWithHandling(`/honeypots/${honeypotId}/disable`, {
       method: 'POST',
+    });
+  }
+
+  async enableHoneypot(honeypotId: string): Promise<void> {
+    await this.fetchWithHandling(`/honeypots/${honeypotId}/enable`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteHoneypot(honeypotId: string): Promise<void> {
+    await this.fetchWithHandling(`/honeypots/${honeypotId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deployHoneypot(config: {
+    name: string
+    blockchain: string
+    protection_type: string
+    monitoring_sensitivity: string
+    auto_response: boolean
+    description: string
+  }): Promise<void> {
+    await this.fetchWithHandling('/honeypots/deploy', {
+      method: 'POST',
+      body: JSON.stringify(config),
     });
   }
 

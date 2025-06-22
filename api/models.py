@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
 
 
 class ThreatLevel(str, Enum):
@@ -50,7 +51,11 @@ class HoneypotData(BaseModel):
     status: str
     last_interaction: Optional[datetime]
     interaction_count: int
-    threat_indicators: List[str]
+    threat_indicators: list[str]
+    protection_type: Optional[str] = None
+    monitoring_sensitivity: Optional[str] = None
+    blockchain: Optional[str] = None
+    description: Optional[str] = None
 
 
 class SystemMetrics(BaseModel):
@@ -64,5 +69,52 @@ class SystemMetrics(BaseModel):
 
 class WebSocketMessage(BaseModel):
     type: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HoneypotConfig(BaseModel):
+    monitoring_sensitivity: str = Field(..., pattern="^(low|medium|high)$")
+    protection_type: str = Field(..., pattern="^(rsa|ecdsa)$")
+    auto_response: bool
+    routing_method: str = Field(..., pattern="^(classical|post_quantum)$")
+
+
+class SystemSettings(BaseModel):
+    email_alerts: bool
+    push_notifications: bool
+    threat_threshold: str = Field(..., pattern="^(low|medium|high)$")
+    auto_response: bool
+    monitoring_interval: int = Field(..., ge=1, le=3600)
+    retention_period: int = Field(..., ge=1, le=365)
+
+
+class DeployHoneypotRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    blockchain: str = Field(..., pattern="^(ethereum|bitcoin|quantum)$")
+    protection_type: str = Field(..., pattern="^(rsa|ecdsa)$")
+    monitoring_sensitivity: str = Field(..., pattern="^(low|medium|high)$")
+    auto_response: bool = True
+    description: Optional[str] = Field(None, max_length=500)
+
+
+class HoneypotInteraction(BaseModel):
+    id: str
+    honeypot_id: str
+    interaction_type: str = Field(..., pattern="^(connection_attempt|transaction|scan|probe|suspicious_activity)$")
+    source_ip: str
+    source_address: Optional[str] = None
+    amount: Optional[float] = None
+    details: dict[str, Any] = {}
+    timestamp: datetime
+    threat_level: str = Field(..., pattern="^(low|medium|high|critical)$")
+    auto_responded: bool = False
+
+
+class RecordInteractionRequest(BaseModel):
+    interaction_type: str = Field(..., pattern="^(connection_attempt|transaction|scan|probe|suspicious_activity)$")
+    source_ip: str = Field(..., min_length=7, max_length=45)  # IPv4 and IPv6 support
+    source_address: Optional[str] = None
+    amount: Optional[float] = Field(None, ge=0)
+    details: dict[str, Any] = {}
+    threat_level: str = Field("medium", pattern="^(low|medium|high|critical)$")

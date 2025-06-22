@@ -63,7 +63,8 @@ import {
   Globe,
   Cpu,
   Wifi,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from "lucide-react"
 import { apiService, type Honeypot } from "@/services/api"
 
@@ -77,6 +78,8 @@ const getStatusBadge = (status: string) => {
       return <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20"><AlertTriangle className="w-3 h-3 mr-1" />Triggered</Badge>
     case "monitoring":
       return <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20"><Eye className="w-3 h-3 mr-1" />Monitoring</Badge>
+    case "disabled":
+      return <Badge variant="outline" className="bg-gray-500/10 text-gray-400 border-gray-500/20"><XCircle className="w-3 h-3 mr-1" />Disabled</Badge>
     default:
       return <Badge variant="outline"><XCircle className="w-3 h-3 mr-1" />Unknown</Badge>
   }
@@ -109,9 +112,47 @@ export function HoneypotsPage() {
   const [notificationDialogOpen, setNotificationDialogOpen] = React.useState(false)
   const [advancedDialogOpen, setAdvancedDialogOpen] = React.useState(false)
   const [honeypotDialogOpen, setHoneypotDialogOpen] = React.useState<string | null>(null)
+  const [deployDialogOpen, setDeployDialogOpen] = React.useState(false)
   
   // Data state
   const [honeypots, setHoneypots] = React.useState<Honeypot[]>([])
+  
+  // Form state for honeypot configuration
+  const [configForm, setConfigForm] = React.useState<{[key: string]: {
+    monitoring_sensitivity: string
+    protection_type: string
+    auto_response: boolean
+  }}>({})
+  
+  // Initialize form state when honeypots change
+  React.useEffect(() => {
+    const initialConfig: {[key: string]: {
+      monitoring_sensitivity: string
+      protection_type: string
+      auto_response: boolean
+    }} = {}
+    
+    honeypots.forEach(honeypot => {
+      initialConfig[honeypot.id] = {
+        monitoring_sensitivity: honeypot.threatLevel || 'medium',
+        protection_type: honeypot.protection || 'ecdsa',
+        auto_response: true
+      }
+    })
+    
+    setConfigForm(initialConfig)
+  }, [honeypots])
+  
+  // Deploy form state
+  const [deployForm, setDeployForm] = React.useState({
+    name: '',
+    blockchain: 'ethereum',
+    protection_type: 'ecdsa',
+    monitoring_sensitivity: 'medium',
+    auto_response: true,
+    description: ''
+  })
+  
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   
@@ -168,6 +209,51 @@ export function HoneypotsPage() {
       console.error('Failed to disable honeypot:', err)
     }
   }
+
+  // Handle honeypot enable
+  const handleEnableHoneypot = async (honeypotId: string) => {
+    try {
+      await apiService.enableHoneypot(honeypotId)
+      // Refresh data
+      await fetchHoneypots()
+      setHoneypotDialogOpen(null)
+    } catch (err) {
+      console.error('Failed to enable honeypot:', err)
+    }
+  }
+
+  // Handle honeypot delete
+  const handleDeleteHoneypot = async (honeypotId: string) => {
+    try {
+      await apiService.deleteHoneypot(honeypotId)
+      // Refresh data
+      await fetchHoneypots()
+      setHoneypotDialogOpen(null)
+    } catch (err) {
+      console.error('Failed to delete honeypot:', err)
+    }
+  }
+  
+  // Handle deploy new honeypot
+  const handleDeployHoneypot = async () => {
+    try {
+      await apiService.deployHoneypot(deployForm)
+      // Refresh data
+      await fetchHoneypots()
+      // Reset form
+      setDeployForm({
+        name: '',
+        blockchain: 'ethereum',
+        protection_type: 'ecdsa',
+        monitoring_sensitivity: 'medium',
+        auto_response: true,
+        description: ''
+      })
+      setDeployDialogOpen(false)
+    } catch (err) {
+      console.error('Failed to deploy honeypot:', err)
+    }
+  }
   
   // Handle settings update
   const handleUpdateSettings = async () => {
@@ -193,7 +279,7 @@ export function HoneypotsPage() {
     <TooltipProvider>
       <motion.div 
         ref={ref}
-        className="flex-1 bg-gray-950 text-white"
+        className="flex-1 bg-gray-950/80 text-white"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -466,7 +552,12 @@ export function HoneypotsPage() {
                       <GiHoneypot className="w-5 h-5 mr-2" />
                       Honeypot Assets
                     </CardTitle>
-                    <Button variant="outline" size="sm" className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white"
+                      onClick={() => setDeployDialogOpen(true)}
+                    >
                       <FaRobot className="w-4 h-4 mr-2" />Deploy New
                     </Button>
                   </div>
@@ -621,11 +712,27 @@ export function HoneypotsPage() {
                                     <Settings className="w-4 h-4 mr-2" />Configure
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator className="bg-gray-700" />
+                                  {asset.status === "disabled" ? (
+                                    <DropdownMenuItem 
+                                      className="text-green-400 hover:bg-gray-800 focus:bg-gray-800 focus:text-green-400 cursor-pointer"
+                                      onClick={() => setHoneypotDialogOpen(`enable-${asset.id}`)}
+                                    >
+                                      <CheckCircle className="w-4 h-4 mr-2" />Enable
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem 
+                                      className="text-red-400 hover:bg-gray-800 focus:bg-gray-800 focus:text-red-400 cursor-pointer"
+                                      onClick={() => setHoneypotDialogOpen(`disable-${asset.id}`)}
+                                    >
+                                      <XCircle className="w-4 h-4 mr-2" />Disable
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator className="bg-gray-700" />
                                   <DropdownMenuItem 
                                     className="text-red-400 hover:bg-gray-800 focus:bg-gray-800 focus:text-red-400 cursor-pointer"
-                                    onClick={() => setHoneypotDialogOpen(`disable-${asset.id}`)}
+                                    onClick={() => setHoneypotDialogOpen(`delete-${asset.id}`)}
                                   >
-                                    <XCircle className="w-4 h-4 mr-2" />Disable
+                                    <Trash2 className="w-4 h-4 mr-2" />Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -944,7 +1051,16 @@ export function HoneypotsPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-white">Monitoring Sensitivity</label>
-                  <Select defaultValue={asset.threatLevel}>
+                  <Select 
+                    value={configForm[asset.id]?.monitoring_sensitivity || asset.threatLevel}
+                    onValueChange={(value) => setConfigForm(prev => ({
+                      ...prev,
+                      [asset.id]: {
+                        ...prev[asset.id],
+                        monitoring_sensitivity: value
+                      }
+                    }))}
+                  >
                     <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -957,7 +1073,16 @@ export function HoneypotsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-white">Protection Type</label>
-                  <Select defaultValue={asset.protection}>
+                  <Select 
+                    value={configForm[asset.id]?.protection_type || asset.protection}
+                    onValueChange={(value) => setConfigForm(prev => ({
+                      ...prev,
+                      [asset.id]: {
+                        ...prev[asset.id],
+                        protection_type: value
+                      }
+                    }))}
+                  >
                     <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -973,7 +1098,14 @@ export function HoneypotsPage() {
                     <p className="text-xs text-gray-400">Automatically respond to threats</p>
                   </div>
                   <Switch 
-                    defaultChecked 
+                    checked={configForm[asset.id]?.auto_response ?? true}
+                    onCheckedChange={(checked) => setConfigForm(prev => ({
+                      ...prev,
+                      [asset.id]: {
+                        ...prev[asset.id],
+                        auto_response: checked
+                      }
+                    }))}
                     className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
                   />
                 </div>
@@ -984,9 +1116,10 @@ export function HoneypotsPage() {
                 </Button>
                 <Button onClick={() => {
                   const config = {
-                    monitoring_sensitivity: document.querySelector(`[data-honeypot-${asset.id}-sensitivity]`)?.getAttribute('data-value') || asset.threatLevel,
-                    protection_type: document.querySelector(`[data-honeypot-${asset.id}-protection]`)?.getAttribute('data-value') || asset.protection,
-                    auto_response: true
+                    monitoring_sensitivity: configForm[asset.id]?.monitoring_sensitivity || asset.threatLevel || 'medium',
+                    protection_type: configForm[asset.id]?.protection_type || asset.protection || 'ecdsa',
+                    auto_response: configForm[asset.id]?.auto_response ?? true,
+                    routing_method: 'classical'
                   };
                   handleConfigureHoneypot(asset.id, config);
                 }} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
@@ -1023,8 +1156,179 @@ export function HoneypotsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Enable Dialog */}
+          <Dialog open={honeypotDialogOpen === `enable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
+            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white flex items-center">
+                  <CheckCircle className="w-5 h-5 mr-2 text-green-400" />
+                  Enable {asset.name}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Are you sure you want to enable this honeypot? This will resume all monitoring and threat detection.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <p className="text-sm text-green-200">
+                  <strong>Info:</strong> Enabling this honeypot will resume monitoring and threat detection for this asset.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+                  Cancel
+                </Button>
+                <Button onClick={() => handleEnableHoneypot(asset.id)} className="bg-green-800 hover:bg-green-700 text-green-100 border border-green-700">
+                  Enable Honeypot
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Dialog */}
+          <Dialog open={honeypotDialogOpen === `delete-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
+            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white flex items-center">
+                  <Trash2 className="w-5 h-5 mr-2 text-red-400" />
+                  Delete {asset.name}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Are you sure you want to permanently delete this honeypot? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-sm text-red-200">
+                  <strong>Warning:</strong> Deleting this honeypot will permanently remove all configuration, monitoring data, and historical records. This action cannot be reversed.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+                  Cancel
+                </Button>
+                <Button onClick={() => handleDeleteHoneypot(asset.id)} className="bg-red-900 hover:bg-red-800 text-red-100 border border-red-800">
+                  Delete Permanently
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </React.Fragment>
       ))}
+
+      {/* Deploy New Honeypot Dialog */}
+      <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <FaRobot className="w-5 h-5 mr-2 text-blue-400" />
+              Deploy New Honeypot
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Configure and deploy a new honeypot to strengthen your security posture.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Honeypot Name *</label>
+              <Input 
+                value={deployForm.name}
+                onChange={(e) => setDeployForm(prev => ({...prev, name: e.target.value}))}
+                placeholder="e.g., Quantum Honeypot 4"
+                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Blockchain Network</label>
+              <Select 
+                value={deployForm.blockchain}
+                onValueChange={(value) => setDeployForm(prev => ({...prev, blockchain: value}))}
+              >
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="ethereum" className="text-white">Ethereum</SelectItem>
+                  <SelectItem value="bitcoin" className="text-white">Bitcoin</SelectItem>
+                  <SelectItem value="quantum" className="text-white">Quantum Testnet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Protection Type</label>
+              <Select 
+                value={deployForm.protection_type}
+                onValueChange={(value) => setDeployForm(prev => ({...prev, protection_type: value}))}
+              >
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="rsa" className="text-white">RSA-2048</SelectItem>
+                  <SelectItem value="ecdsa" className="text-white">ECDSA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Monitoring Sensitivity</label>
+              <Select 
+                value={deployForm.monitoring_sensitivity}
+                onValueChange={(value) => setDeployForm(prev => ({...prev, monitoring_sensitivity: value}))}
+              >
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="low" className="text-white">Low Sensitivity</SelectItem>
+                  <SelectItem value="medium" className="text-white">Medium Sensitivity</SelectItem>
+                  <SelectItem value="high" className="text-white">High Sensitivity</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Description</label>
+              <Input 
+                value={deployForm.description}
+                onChange={(e) => setDeployForm(prev => ({...prev, description: e.target.value}))}
+                placeholder="Optional description for this honeypot"
+                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-white">Auto-Response</label>
+                <p className="text-xs text-gray-400">Automatically respond to detected threats</p>
+              </div>
+              <Switch 
+                checked={deployForm.auto_response}
+                onCheckedChange={(checked) => setDeployForm(prev => ({...prev, auto_response: checked}))}
+                className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setDeployDialogOpen(false)} 
+              className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDeployHoneypot}
+              disabled={!deployForm.name.trim()}
+              className="bg-blue-700 hover:bg-blue-600 text-white border border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Deploy Honeypot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
 
   )

@@ -27,3 +27,8 @@ class Config:
     def get(cls, key: str, default: Any = None) -> Any:
         """Get configuration value."""
         return getattr(cls, key, default)
+
+
+def get_settings() -> Config:
+    """Get application settings instance."""
+    return Config()
