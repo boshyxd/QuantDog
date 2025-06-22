@@ -8,7 +8,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-[#1e1e2e]">
+    <div className="min-h-screen bg-background">
       <div className="flex h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col">
