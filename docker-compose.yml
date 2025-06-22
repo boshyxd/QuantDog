@@ -13,9 +13,10 @@ services:
     build:
       context: .
       dockerfile: client/demo.dockerfile
+
+    privileged: true
     restart: unless-stopped
     deploy:
       replicas: 3
-
-networks:
-  client-demo:
+# networks:
+#   client-demo:

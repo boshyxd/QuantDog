@@ -1,7 +1,7 @@
 import logging
 import socket
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from quantdog.client.common import logger, settings
 
@@ -14,9 +14,9 @@ class KEMListener:
     ):
         self.host = host
         self.kem_port = kem_port
-        self.socket: Optional[socket.socket] = None
+        self.socket: socket.socket | None = None
         self.is_running = False
-        self.connection_handler: Optional[Callable] = None
+        self.connection_handler: Callable | None = None
 
     def start(self):
         """Start the PQC listener."""
@@ -42,7 +42,7 @@ class KEMListener:
 
                     # Handle connection in separate thread
                     client_thread = threading.Thread(
-                        target=self.pqc_handler,
+                        target=self.kem_handler,
                         args=(client_socket, client_address),
                     )
                     client_thread.daemon = True
@@ -64,7 +64,7 @@ class KEMListener:
             self.socket.close()
         logger.info("TCP Listener stopped")
 
-    def pqc_handler(self, client_socket: socket.socket, client_address: tuple):
+    def kem_handler(self, client_socket: socket.socket, client_address: tuple):
         """Handler for PQC encrypted data"""
         try:
             while True:
