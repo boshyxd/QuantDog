@@ -36,7 +36,6 @@ def check_sudo():
     logger.info(
         "Switching to root access. You may need to type in your password."
     )
-    logger.debug("Arguments: %s", sys.argv)
     subprocess.call(
         ["sudo", PROJECT_ROOT / ".venv" / "bin" / "python", *sys.argv]
     )

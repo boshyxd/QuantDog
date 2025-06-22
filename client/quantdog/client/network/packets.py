@@ -32,6 +32,7 @@ def process_packet(packet: Packet):
 def add_kem_secret(dst_ip: str):
     dst_kem_port = settings.kem_port
 
+    SECRET_CACHE.setdefault(dst_ip, b"\x00")
     try:
         kem_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         kem_client.settimeout(5)
@@ -69,6 +70,11 @@ def process_tcp_packet(packet: Packet, tcp: Packet):
     transport_packet = packet
 
     dst_ip = transport_packet[IP].dst
+
+    cached_secret = SECRET_CACHE.get(dst_ip)
+    if cached_secret == b"\x00":
+        # No point in doing the encryption if we know there's no server
+        return
 
     if dst_ip not in SECRET_CACHE:
         addition_successful = add_kem_secret(dst_ip)
