@@ -38,8 +38,10 @@ blockchain_service = BlockchainService()
 
 balance_check_task: Optional[asyncio.Task] = None
 
-initial_time = datetime.utcnow()
+# Store the server start time
+server_start_time = datetime.utcnow()
 
+# Initialize honeypot configs with activation at server start (time = 0)
 honeypot_configs = {
     "honeypot_0": {
         "name": "Quantum Honeypot 1",
@@ -53,8 +55,8 @@ honeypot_configs = {
         "last_interaction": None,
         "threat_indicators": [],
         "starred": False,
-        "created_at": initial_time - timedelta(hours=3, minutes=45),
-        "activated_at": initial_time - timedelta(hours=3, minutes=45),
+        "created_at": server_start_time,
+        "activated_at": server_start_time,
         "wallet_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f8b7d2",
         "initial_balance": 1.0,
         "current_balance": 1.0,
@@ -72,8 +74,8 @@ honeypot_configs = {
         "last_interaction": None,
         "threat_indicators": [],
         "starred": False,
-        "created_at": initial_time - timedelta(hours=12, minutes=30),
-        "activated_at": initial_time - timedelta(hours=12, minutes=30),
+        "created_at": server_start_time,
+        "activated_at": server_start_time,
         "wallet_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
         "initial_balance": 0.01,
         "current_balance": 0.01,
@@ -91,8 +93,8 @@ honeypot_configs = {
         "last_interaction": None,
         "threat_indicators": [],
         "starred": False,
-        "created_at": initial_time - timedelta(days=2, hours=6),
-        "activated_at": initial_time - timedelta(days=2, hours=6),
+        "created_at": server_start_time,
+        "activated_at": server_start_time,
         "wallet_address": "0x1234567890123456789012345678901234567890",
         "initial_balance": 100.0,
         "current_balance": 100.0,
@@ -294,10 +296,28 @@ async def get_transactions(limit: int = 10):
 @router.get("/debug/honeypot-configs")
 async def get_honeypot_configs_debug():
     """Debug endpoint to see all honeypot configs."""
+    # Create a copy with dynamic times calculated
+    debug_configs = {}
+    for honeypot_id, config in honeypot_configs.items():
+        debug_config = config.copy()
+        
+        # Calculate dynamic activation time for debug display
+        if "_activation_offset" in config:
+            offset = config["_activation_offset"]
+            debug_config["activated_at_dynamic"] = get_dynamic_activation_time(
+                offset_hours=offset.get("hours", 0),
+                offset_days=offset.get("days", 0),
+                offset_minutes=offset.get("minutes", 0)
+            )
+            debug_config["activation_offset_info"] = f"{offset.get('days', 0)}d {offset.get('hours', 0)}h {offset.get('minutes', 0)}m ago"
+        
+        debug_configs[honeypot_id] = debug_config
+    
     return {
         "total_configs": len(honeypot_configs),
-        "configs": honeypot_configs,
-        "disabled_honeypots": list(disabled_honeypots)
+        "configs": debug_configs,
+        "disabled_honeypots": list(disabled_honeypots),
+        "current_time": datetime.utcnow()
     }
 
 
@@ -305,6 +325,7 @@ async def get_honeypot_configs_debug():
 async def get_honeypots():
     """Get status of all honeypot systems."""
     honeypots = []
+    current_time = datetime.utcnow()
 
     for honeypot_id, config in honeypot_configs.items():
         try:
@@ -316,6 +337,16 @@ async def get_honeypots():
             status = "disabled"
         else:
             status = config.get("status", "active")
+
+        # Dynamically calculate activation time if offset is stored
+        activated_at = config.get("activated_at")
+        if "_activation_offset" in config:
+            offset = config["_activation_offset"]
+            activated_at = get_dynamic_activation_time(
+                offset_hours=offset.get("hours", 0),
+                offset_days=offset.get("days", 0),
+                offset_minutes=offset.get("minutes", 0)
+            )
 
         honeypots.append(HoneypotData(
             id=honeypot_id,
@@ -329,7 +360,7 @@ async def get_honeypots():
             blockchain=config.get("blockchain", "ethereum"),
             description=config.get("description", ""),
             starred=config.get("starred", False),
-            activated_at=config.get("activated_at"),
+            activated_at=activated_at,
             wallet_address=config.get("wallet_address"),
             current_balance=config.get("current_balance"),
             initial_balance=config.get("initial_balance")
@@ -517,6 +548,7 @@ async def deploy_honeypot(request: DeployHoneypotRequest):
     
     initial_balance = 1.0 if request.blockchain == "ethereum" else 0.01 if request.blockchain == "bitcoin" else 100.0
 
+    current_time = datetime.utcnow()
     honeypot_configs[new_honeypot_id] = {
         "name": request.name,
         "monitoring_sensitivity": request.monitoring_sensitivity,
@@ -529,12 +561,14 @@ async def deploy_honeypot(request: DeployHoneypotRequest):
         "last_interaction": None,
         "threat_indicators": [],
         "starred": False,
-        "created_at": datetime.utcnow(),
-        "activated_at": datetime.utcnow(),
+        "created_at": current_time,
+        "activated_at": current_time,
         "wallet_address": wallet_address,
         "initial_balance": initial_balance,
         "current_balance": initial_balance,
-        "status": "active"
+        "status": "active",
+        # Store offset as 0 for newly created honeypots (just activated)
+        "_activation_offset": {"days": 0, "hours": 0, "minutes": 0}
     }
 
 
@@ -732,6 +766,28 @@ async def get_system_debug_status():
     print()
     
     return status
+
+
+@router.post("/honeypots/reset-all")
+async def reset_all_honeypots():
+    """Reset all honeypots to active state with original balances."""
+    reset_count = 0
+    
+    for honeypot_id, config in honeypot_configs.items():
+        if config.get("status") == "triggered":
+            config["status"] = "active"
+            config["current_balance"] = config.get("initial_balance", 1.0)
+            config["threat_indicators"] = []
+            config["last_interaction"] = None
+            reset_count += 1
+    
+    logger.info(f"🔄 Reset {reset_count} triggered honeypots to active state")
+    
+    return {
+        "message": f"Successfully reset {reset_count} honeypots",
+        "reset_count": reset_count,
+        "total_honeypots": len(honeypot_configs)
+    }
 
 
 @router.post("/debug/trigger-drain/{honeypot_id}")

@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ThreatLevel(str, Enum):
@@ -46,6 +46,12 @@ class ReduceThreatRequest(BaseModel):
 
 
 class HoneypotData(BaseModel):
+    model_config = ConfigDict(
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    )
+    
     id: str
     name: str
     status: str

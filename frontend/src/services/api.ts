@@ -97,40 +97,64 @@ class ApiService {
         address = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
       }
 
-      // Calculate time since activation
-      let lastActivity = 'Never';
-      if (hp.last_interaction) {
-        lastActivity = new Date(hp.last_interaction).toLocaleString();
-      } else if (hp.activated_at) {
+      // Calculate time since activation (time alive)
+      let lastActivity = 'Never activated';
+      if (hp.activated_at) {
         try {
           const activatedDate = new Date(hp.activated_at);
           const now = new Date();
           
-          // Debug logging (can be removed in production)
-          // console.log(`Honeypot ${hp.id}: activated_at=${hp.activated_at}, parsed=${activatedDate}, now=${now}`);
-          
           // Check if the date is valid
           if (isNaN(activatedDate.getTime())) {
-            lastActivity = 'Invalid date';
+            lastActivity = 'Invalid activation date';
           } else {
             const diffMs = now.getTime() - activatedDate.getTime();
             
-            // Check if diffMs is negative (future date)
+            // Always show the actual time difference
             if (diffMs < 0) {
-              lastActivity = 'Future date detected';
+              // Future date - shouldn't happen but handle gracefully
+              lastActivity = 'Just activated';
             } else {
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-              const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              const diffSeconds = Math.floor(diffMs / 1000);
+              const diffMins = Math.floor(diffSeconds / 60);
+              const diffHours = Math.floor(diffMins / 60);
+              const diffDays = Math.floor(diffHours / 24);
               
+              // Show most recent interaction if available
+              let prefix = 'Active for ';
+              if (hp.last_interaction) {
+                const lastInteractionDate = new Date(hp.last_interaction);
+                const interactionDiffMs = now.getTime() - lastInteractionDate.getTime();
+                if (interactionDiffMs >= 0 && interactionDiffMs < diffMs) {
+                  // Show last interaction time if it's more recent than activation
+                  const intMins = Math.floor(interactionDiffMs / (1000 * 60));
+                  const intHours = Math.floor(intMins / 60);
+                  const intDays = Math.floor(intHours / 24);
+                  
+                  if (intDays > 0) {
+                    prefix = `Last activity ${intDays}d ago, active for `;
+                  } else if (intHours > 0) {
+                    prefix = `Last activity ${intHours}h ago, active for `;
+                  } else if (intMins > 0) {
+                    prefix = `Last activity ${intMins}m ago, active for `;
+                  } else {
+                    prefix = 'Last activity <1m ago, active for ';
+                  }
+                }
+              }
+              
+              // Format the time alive
               if (diffDays > 0) {
-                lastActivity = `Active for ${diffDays}d ${diffHours}h`;
+                const remainingHours = diffHours % 24;
+                lastActivity = `${prefix}${diffDays}d ${remainingHours}h`;
               } else if (diffHours > 0) {
-                lastActivity = `Active for ${diffHours}h ${diffMins}m`;
+                const remainingMins = diffMins % 60;
+                lastActivity = `${prefix}${diffHours}h ${remainingMins}m`;
               } else if (diffMins > 0) {
-                lastActivity = `Active for ${diffMins}m`;
+                const remainingSeconds = diffSeconds % 60;
+                lastActivity = `${prefix}${diffMins}m ${remainingSeconds}s`;
               } else {
-                lastActivity = 'Active for <1m';
+                lastActivity = `${prefix}${diffSeconds}s`;
               }
             }
           }
@@ -282,6 +306,12 @@ class ApiService {
   // Crypto method endpoints
   async switchCryptoMethod(method: 'classical' | 'post_quantum'): Promise<void> {
     await this.fetchWithHandling(`/crypto/switch/${method}`, {
+      method: 'POST',
+    });
+  }
+
+  async resetAllHoneypots(): Promise<{ message: string; reset_count: number; total_honeypots: number }> {
+    return await this.fetchWithHandling('/honeypots/reset-all', {
       method: 'POST',
     });
   }

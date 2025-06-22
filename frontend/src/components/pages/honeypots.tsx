@@ -48,6 +48,10 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
+  RefreshCw,
+  Zap,
+  Lock,
+  Cpu,
   Star,
   Eye,
   Activity,
@@ -58,13 +62,12 @@ import {
   Download,
   Share,
   BarChart3,
-  Zap,
-  Lock,
   Globe,
-  Cpu,
   Wifi,
-  RefreshCw,
-  Trash2
+  Trash2,
+  Shield,
+  Pause,
+  Play
 } from "lucide-react"
 import { apiService, type Honeypot } from "@/services/api"
 import { webSocketService, type HoneypotCompromisedData } from "@/services/websocket"
@@ -115,6 +118,23 @@ export function HoneypotsPage() {
   const [deployDialogOpen, setDeployDialogOpen] = React.useState(false)
   
   const [honeypots, setHoneypots] = React.useState<Honeypot[]>([])
+  const [showPqcAnimation, setShowPqcAnimation] = React.useState(false)
+  const [selectedPqcAlgorithm, setSelectedPqcAlgorithm] = React.useState('Dilithium2')
+  const [isResetting, setIsResetting] = React.useState(false)
+  const [compromisedHoneypot, setCompromisedHoneypot] = React.useState<any>(null)
+  const [animationPaused, setAnimationPaused] = React.useState(false)
+  
+  const pqcAlgorithms = [
+    { value: 'Dilithium2', name: 'Dilithium2', description: 'NIST-selected digital signature', keySize: '2528 bytes' },
+    { value: 'Kyber512', name: 'Kyber-512', description: 'NIST-selected KEM', keySize: '800 bytes' },
+    { value: 'Falcon512', name: 'Falcon-512', description: 'Fast lattice-based signature', keySize: '897 bytes' },
+    { value: 'SPHINCS+', name: 'SPHINCS+', description: 'Hash-based signature', keySize: '32 bytes' }
+  ]
+
+  const classicalAlgorithms = {
+    'rsa': { name: 'RSA-2048', keySize: '256 bytes', vulnerable: true },
+    'ecdsa': { name: 'ECDSA-P256', keySize: '32 bytes', vulnerable: true }
+  }
   
   const [configForm, setConfigForm] = React.useState<{[key: string]: {
     monitoring_sensitivity: string
@@ -183,6 +203,10 @@ export function HoneypotsPage() {
     const unsubscribeCompromised = webSocketService.on('honeypot_compromised', (data: HoneypotCompromisedData) => {
       console.log('🚨 Honeypot compromised event received:', data)
       
+      // Show PQC activation animation
+      setShowPqcAnimation(true)
+      setTimeout(() => setShowPqcAnimation(false), 5000)
+      
       toast.error(`CRITICAL: ${data.honeypot_name} COMPROMISED!`, {
         description: `${data.amount_drained} ${data.blockchain.toUpperCase()} drained from ${data.wallet_address}. Auto-response: ${data.auto_responded ? 'Active' : 'Inactive'}`,
         duration: 10000,
@@ -191,6 +215,15 @@ export function HoneypotsPage() {
           onClick: () => console.log("Viewing honeypot details")
         }
       })
+      
+      // Show additional notification about PQC activation
+      setTimeout(() => {
+        toast.success(`Post-Quantum Cryptography Activated!`, {
+          description: `${selectedPqcAlgorithm} algorithm deployed to protect remaining assets`,
+          duration: 8000,
+          icon: <Zap className="w-5 h-5" />
+        })
+      }, 1000)
       
       fetchHoneypots()
     })
@@ -295,8 +328,246 @@ export function HoneypotsPage() {
     }
   }
 
+  const handleResetHoneypots = async () => {
+    try {
+      setIsResetting(true)
+      const result = await apiService.resetAllHoneypots()
+      
+      if (result.reset_count > 0) {
+        toast.success(`Reset ${result.reset_count} honeypots`, {
+          description: 'All triggered honeypots have been restored to active state'
+        })
+      } else {
+        toast.info('No honeypots needed resetting', {
+          description: 'All honeypots are already active'
+        })
+      }
+      
+      await fetchHoneypots()
+    } catch (err) {
+      console.error('Failed to reset honeypots:', err)
+      toast.error('Failed to reset honeypots')
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
+  const handleTestTrigger = () => {
+    // Simulate a honeypot compromise event
+    const mockHoneypot = honeypots[0] || {
+      id: 'test_honeypot',
+      name: 'Test Honeypot',
+      blockchain: 'ethereum',
+      wallet_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f8b7d2',
+      protection_type: 'ecdsa'
+    }
+
+    const mockCompromiseEvent = {
+      honeypot_id: mockHoneypot.id,
+      honeypot_name: mockHoneypot.name,
+      blockchain: mockHoneypot.blockchain || 'ethereum',
+      wallet_address: mockHoneypot.wallet_address || '0x742d35Cc6634C0532925a3b844Bc9e7595f8b7d2',
+      amount_drained: 1.5,
+      auto_responded: true,
+      previous_algorithm: mockHoneypot.protection_type || 'ecdsa'
+    }
+
+    // Store compromised honeypot data for animation
+    setCompromisedHoneypot(mockCompromiseEvent)
+
+    // Show PQC activation animation
+    setShowPqcAnimation(true)
+    setTimeout(() => {
+      setShowPqcAnimation(false)
+      setCompromisedHoneypot(null)
+    }, 6000)
+    
+    // Show compromise notification
+    toast.error(`CRITICAL: ${mockCompromiseEvent.honeypot_name} COMPROMISED!`, {
+      description: `${mockCompromiseEvent.amount_drained} ${mockCompromiseEvent.blockchain.toUpperCase()} drained from ${mockCompromiseEvent.wallet_address}. Auto-response: ${mockCompromiseEvent.auto_responded ? 'Active' : 'Inactive'}`,
+      duration: 10000,
+      action: {
+        label: "View Details",
+        onClick: () => console.log("Viewing honeypot details")
+      }
+    })
+    
+    // Show PQC activation notification
+    setTimeout(() => {
+      toast.success(`Post-Quantum Cryptography Activated!`, {
+        description: `${selectedPqcAlgorithm} algorithm deployed to protect remaining assets`,
+        duration: 8000,
+        icon: <Zap className="w-5 h-5" />
+      })
+    }, 1000)
+  }
+
   return (
     <TooltipProvider>
+      {/* PQC Activation Animation Overlay */}
+      <AnimatePresence>
+        {showPqcAnimation && compromisedHoneypot && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-xl p-8 max-w-2xl w-full mx-4 shadow-2xl relative"
+            >
+              {/* Header with pause button */}
+              <div className="flex items-center justify-between mb-6">
+                <motion.h2
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-xl font-semibold text-white"
+                >
+                  Cryptographic Protocol Upgrade
+                </motion.h2>
+                
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                  onClick={() => setAnimationPaused(!animationPaused)}
+                  className="p-2 rounded-lg bg-accent hover:bg-accent/80 transition-colors border border-border/50"
+                >
+                  {animationPaused ? (
+                    <Play className="w-4 h-4 text-white" />
+                  ) : (
+                    <Pause className="w-4 h-4 text-white" />
+                  )}
+                </motion.button>
+              </div>
+
+              {/* Status indicator line */}
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.4, duration: 0.6 }}
+                className="h-px bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 mb-6 origin-left"
+              />
+
+              {/* Cryptographic Transition Section */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: animationPaused ? 0.7 : 1 }}
+                transition={{ delay: 0.5 }}
+                className="space-y-4"
+              >
+                {/* Algorithm Transition Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Previous Algorithm */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: animationPaused ? 0 : 0.6 }}
+                    className="bg-accent/30 border border-border/50 rounded-lg p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full" />
+                      <span className="text-sm font-medium text-gray-300">Previous</span>
+                    </div>
+                    <p className="font-mono text-sm text-white mb-1">
+                      {classicalAlgorithms[compromisedHoneypot.previous_algorithm as keyof typeof classicalAlgorithms]?.name || 'ECDSA-P256'}
+                    </p>
+                    <p className="text-xs text-red-400">Quantum vulnerable</p>
+                  </motion.div>
+
+                  {/* New Algorithm */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: animationPaused ? 0 : 0.8 }}
+                    className="bg-green-500/10 border border-green-500/30 rounded-lg p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      <span className="text-sm font-medium text-gray-300">Active</span>
+                    </div>
+                    <p className="font-mono text-sm text-white mb-1">
+                      {pqcAlgorithms.find(a => a.value === selectedPqcAlgorithm)?.name}
+                    </p>
+                    <p className="text-xs text-green-400">Quantum resistant</p>
+                  </motion.div>
+                </div>
+
+                {/* Technical Details */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: animationPaused ? 0 : 1.0 }}
+                  className="bg-accent/20 border border-border/50 rounded-lg p-4"
+                >
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-xs text-gray-300 mb-1">Key Size</p>
+                      <p className="font-mono text-sm text-white">
+                        {pqcAlgorithms.find(a => a.value === selectedPqcAlgorithm)?.keySize}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-300 mb-1">Security Level</p>
+                      <p className="font-mono text-sm text-white">NIST-1</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-300 mb-1">Hash Type</p>
+                      <p className="font-mono text-sm text-white">SHA3-256</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Hash Output */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: animationPaused ? 0 : 1.2 }}
+                  className="bg-accent/20 border border-border/50 rounded-lg p-4"
+                >
+                  <p className="text-xs text-gray-300 mb-2">Signature Hash</p>
+                  <div className="bg-background/50 rounded p-3 border border-border/30">
+                    <p className="font-mono text-xs text-white break-all">
+                      0x4f2a8b5c9e7d1a3f8c6b2e9d4a7c1b8f5e3a9c6d2b8e4a7c1f9d5b2e8a4c7b1f
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* Status */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: animationPaused ? 0 : 1.4 }}
+                  className="flex items-center justify-center gap-2 text-sm text-green-400"
+                >
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="font-medium">Quantum-resistant cryptography active</span>
+                </motion.div>
+              </motion.div>
+              
+              {/* Progress Bar */}
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ 
+                  scaleX: animationPaused ? 0.5 : 1,
+                  transition: { 
+                    duration: animationPaused ? 0 : 6, 
+                    ease: "linear",
+                    type: animationPaused ? "spring" : "tween"
+                  }
+                }}
+                className="mt-6 h-1 bg-gradient-to-r from-border via-muted-foreground to-green-500 rounded-full origin-left"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div 
         ref={ref}
         className="flex-1 bg-background text-foreground"
@@ -360,6 +631,39 @@ export function HoneypotsPage() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Export honeypot data</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-orange-600/50 bg-transparent text-orange-400 hover:bg-orange-900/20 hover:text-orange-300"
+                    onClick={handleTestTrigger}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Test Trigger
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Simulate a honeypot compromise for testing</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-red-600/50 bg-transparent text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                    onClick={handleResetHoneypots}
+                    disabled={isResetting}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
+                    Reset Triggered
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Reset all triggered honeypots to active state</p>
                 </TooltipContent>
               </Tooltip>
               <DropdownMenu>
@@ -442,8 +746,8 @@ export function HoneypotsPage() {
               transition={{ duration: 0.6, delay: 0.9 }}
             >
               <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
-                <CardContent className="p-4 h-full flex items-center">
-                  <div className="flex items-center justify-between w-full">
+                <CardContent className="p-4 h-full flex flex-col justify-start">
+                  <div className="flex items-start justify-between w-full">
                     <div>
                       <p className="text-muted-foreground text-sm">Active Honeypots</p>
                       <p className="text-xl font-semibold mt-1 text-foreground">{honeypots.length}</p>
@@ -465,7 +769,7 @@ export function HoneypotsPage() {
             >
               <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
                       <p className="text-muted-foreground text-sm">Total Interactions</p>
                       <p className="text-xl font-semibold mt-1 text-foreground">
@@ -492,8 +796,8 @@ export function HoneypotsPage() {
               transition={{ duration: 0.6, delay: 1.1 }}
             >
               <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
-                <CardContent className="p-4 h-full flex items-center">
-                  <div className="flex items-center justify-between w-full">
+                <CardContent className="p-4 h-full flex flex-col justify-start">
+                  <div className="flex items-start justify-between w-full">
                     <div>
                       <p className="text-muted-foreground text-sm">Threat Detection</p>
                       <p className="text-xl font-semibold mt-1 text-foreground">98.7%</p>
@@ -515,7 +819,7 @@ export function HoneypotsPage() {
             >
               <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
                       <p className="text-muted-foreground text-sm">Security Score</p>
                       <p className="text-xl font-semibold mt-1 text-green-400">Excellent</p>
@@ -967,6 +1271,31 @@ export function HoneypotsPage() {
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-xs text-blue-200">
                 <strong>Info:</strong> The system will automatically switch to post-quantum routing when threats are detected.
+              </p>
+            </div>
+            <Separator className="my-4 bg-secondary" />
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground flex items-center">
+                <Cpu className="w-4 h-4 mr-2 text-green-400" />
+                Post-Quantum Algorithm
+              </label>
+              <Select value={selectedPqcAlgorithm} onValueChange={setSelectedPqcAlgorithm}>
+                <SelectTrigger className="bg-accent border-border text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-accent border-border">
+                  {pqcAlgorithms.map((algo) => (
+                    <SelectItem key={algo.value} value={algo.value} className="text-foreground">
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">{algo.name}</span>
+                        <span className="text-xs text-muted-foreground">{algo.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Algorithm activated when honeypots are compromised
               </p>
             </div>
           </div>
