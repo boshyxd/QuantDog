@@ -1,0 +1,49 @@
+[project]
+name = "client"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "liboqs-python",
+  "psutil>=7.0.0",
+  "pyroute2>=0.9.2",
+  "scapy>=2.6.1",
+  "structlog>=25.4.0",
+]
+
+[tool.ruff]
+line-length = 80
+
+
+[tool.ruff.lint]
+select = [
+  # pycodestyle
+  "E",
+  # Pyflakes
+  "F",
+  # pyupgrade
+  "UP",
+  # flake8-bugbear
+  "B",
+  # flake8-simplify
+  "SIM",
+  # isort
+  "I",
+  # fastapi
+  "FAST",
+]
+extend-select = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["quantdog", "tests"]
+
+[tool.pyright]
+venvPath = "../."
+venv = ".venv"
+include = ["**/*.py"]
+exclude = ["**/node_modules", "**/__pycache__"]
+pythonVersion = "3.9"
+
+[tool.uv.sources]
+liboqs-python = { git = "https://github.com/open-quantum-safe/liboqs-python" }
