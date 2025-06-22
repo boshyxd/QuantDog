@@ -32,3 +32,4 @@ class Config:
 def get_settings() -> Config:
     """Get application settings instance."""
     return Config()
+

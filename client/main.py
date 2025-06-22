@@ -1,10 +1,7 @@
-import oqs
 import psutil
 
 from quantdog.client.common import check_sudo, logger
 from quantdog.client.network import create_tun_interface, packet_listener
-
-logger.info("liboqs version: %s", oqs.oqs_version())
 
 
 def main():
