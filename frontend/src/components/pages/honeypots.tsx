@@ -1,0 +1,1031 @@
+import * as React from "react"
+import { motion, AnimatePresence, useInView } from "motion/react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import { Separator } from "@/components/ui/separator"
+import { GiHoneypot } from "react-icons/gi"
+import { 
+  SiHackerone,
+  SiCyberdefenders,
+  SiFirebase,
+  SiBitcoin,
+  SiEthereum
+} from "react-icons/si"
+import { 
+  MdSecurity,
+  MdNetworkCheck,
+  MdRadar,
+  MdBugReport,
+  MdMonitorHeart
+} from "react-icons/md"
+import { 
+  FaShieldAlt,
+  FaNetworkWired,
+  FaEye,
+  FaRobot,
+  FaBrain,
+  FaCode,
+  FaServer
+} from "react-icons/fa"
+import { 
+  HiShieldCheck,
+  HiCpuChip,
+  HiFingerPrint
+} from "react-icons/hi2"
+import { 
+  MoreHorizontal,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  Star,
+  Eye,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Settings,
+  Download,
+  Share,
+  BarChart3,
+  Zap,
+  Lock,
+  Globe,
+  Cpu,
+  Wifi,
+  RefreshCw
+} from "lucide-react"
+import { apiService, type Honeypot } from "@/services/api"
+
+// Honeypots data will be fetched from API
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "active":
+      return <Badge variant="secondary" className="bg-green-500/10 text-green-400 border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>
+    case "triggered":
+      return <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20"><AlertTriangle className="w-3 h-3 mr-1" />Triggered</Badge>
+    case "monitoring":
+      return <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20"><Eye className="w-3 h-3 mr-1" />Monitoring</Badge>
+    default:
+      return <Badge variant="outline"><XCircle className="w-3 h-3 mr-1" />Unknown</Badge>
+  }
+}
+
+const getThreatLevelColor = (level: string) => {
+  switch (level) {
+    case "low": return "text-green-400"
+    case "medium": return "text-yellow-400"
+    case "high": return "text-red-400"
+    default: return "text-gray-400"
+  }
+}
+
+const getThreatProgress = (level: string) => {
+  switch (level) {
+    case "low": return 25
+    case "medium": return 60
+    case "high": return 85
+    default: return 0
+  }
+}
+
+export function HoneypotsPage() {
+  const ref = React.useRef(null)
+  const isInView = useInView(ref, { once: true })
+  
+  // Dialog state management
+  const [alertsDialogOpen, setAlertsDialogOpen] = React.useState(false)
+  const [notificationDialogOpen, setNotificationDialogOpen] = React.useState(false)
+  const [advancedDialogOpen, setAdvancedDialogOpen] = React.useState(false)
+  const [honeypotDialogOpen, setHoneypotDialogOpen] = React.useState<string | null>(null)
+  
+  // Data state
+  const [honeypots, setHoneypots] = React.useState<Honeypot[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+  
+  // Settings state
+  const [settings, setSettings] = React.useState({
+    emailAlerts: true,
+    pushNotifications: false,
+    threatThreshold: "medium",
+    autoResponse: true,
+    monitoringInterval: "5",
+    retentionPeriod: "30"
+  })
+  
+  // Fetch honeypots data
+  const fetchHoneypots = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await apiService.getHoneypots()
+      setHoneypots(data)
+      setError(null)
+    } catch (err) {
+      setError('Failed to load honeypots')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  
+  // Initial load
+  React.useEffect(() => {
+    fetchHoneypots()
+  }, [])
+  
+  // Handle honeypot configuration
+  const handleConfigureHoneypot = async (honeypotId: string, config: any) => {
+    try {
+      await apiService.updateHoneypotConfig(honeypotId, config)
+      // Refresh data
+      await fetchHoneypots()
+      setHoneypotDialogOpen(null)
+    } catch (err) {
+      console.error('Failed to update honeypot config:', err)
+    }
+  }
+  
+  // Handle honeypot disable
+  const handleDisableHoneypot = async (honeypotId: string) => {
+    try {
+      await apiService.disableHoneypot(honeypotId)
+      // Refresh data
+      await fetchHoneypots()
+      setHoneypotDialogOpen(null)
+    } catch (err) {
+      console.error('Failed to disable honeypot:', err)
+    }
+  }
+  
+  // Handle settings update
+  const handleUpdateSettings = async () => {
+    try {
+      await apiService.updateSystemSettings({
+        email_alerts: settings.emailAlerts,
+        push_notifications: settings.pushNotifications,
+        threat_threshold: settings.threatThreshold,
+        auto_response: settings.autoResponse,
+        monitoring_interval: parseInt(settings.monitoringInterval),
+        retention_period: parseInt(settings.retentionPeriod)
+      })
+      // Close dialogs
+      setAlertsDialogOpen(false)
+      setNotificationDialogOpen(false)
+      setAdvancedDialogOpen(false)
+    } catch (err) {
+      console.error('Failed to update settings:', err)
+    }
+  }
+
+  return (
+    <TooltipProvider>
+      <motion.div 
+        ref={ref}
+        className="flex-1 bg-gray-950 text-white"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="p-6">
+          {/* Header with Actions */}
+          <motion.div 
+            className="flex items-center justify-between mb-6"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <div>
+              <motion.h1 
+                className="text-2xl font-bold mb-2"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                Honeypot Dashboard
+              </motion.h1>
+              <motion.p 
+                className="text-gray-400"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              >
+                Monitor and manage your quantum-protected honeypots
+              </motion.p>
+            </div>
+            <motion.div 
+              className="flex items-center gap-2"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white"
+                    onClick={fetchHoneypots}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Refresh honeypot data</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white">
+                    <Download className="w-4 h-4 mr-2" />Export
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export honeypot data</p>
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white">
+                    <Settings className="w-4 h-4 mr-2" />Settings
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-gray-900 border-gray-700">
+                  <DropdownMenuItem 
+                    className="text-white hover:bg-gray-800 focus:bg-gray-800 focus:text-white cursor-pointer"
+                    onClick={() => setAlertsDialogOpen(true)}
+                  >
+                    Configure Alerts
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="text-white hover:bg-gray-800 focus:bg-gray-800 focus:text-white cursor-pointer"
+                    onClick={() => setNotificationDialogOpen(true)}
+                  >
+                    Notification Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-gray-700" />
+                  <DropdownMenuItem 
+                    className="text-white hover:bg-gray-800 focus:bg-gray-800 focus:text-white cursor-pointer"
+                    onClick={() => setAdvancedDialogOpen(true)}
+                  >
+                    Advanced Settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </motion.div>
+          </motion.div>
+
+          {/* Alert */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <Alert className="mb-6 bg-green-500/10 border-green-500/20">
+              <HiShieldCheck className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-green-200">
+                <strong>System Protection Active:</strong> All honeypots are using standard cryptography (RSA/ECDSA). Post-quantum routing activates when threats are detected.
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+
+          {/* Portfolio Value */}
+          <motion.div 
+            className="mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+          >
+            <p className="text-gray-400 text-sm mb-1">Total Portfolio Value</p>
+            <motion.h2 
+              className="text-3xl font-semibold"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+            >
+              $0.00
+            </motion.h2>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-gray-400 text-sm">24h</span>
+              <span className="text-green-500 text-sm flex items-center">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                0.00%
+              </span>
+            </div>
+          </motion.div>
+
+          {/* Quick Stats */}
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.9 }}
+            >
+              <Card className="bg-gray-900 border-gray-800 hover:bg-gray-800/50 transition-colors h-32">
+                <CardContent className="p-4 h-full flex items-center">
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <p className="text-gray-400 text-sm">Active Honeypots</p>
+                      <p className="text-xl font-semibold mt-1 text-white">{honeypots.length}</p>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: [0, 10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <GiHoneypot className="w-8 h-8 text-amber-400" />
+                    </motion.div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 1.0 }}
+            >
+              <Card className="bg-gray-900 border-gray-800 hover:bg-gray-800/50 transition-colors h-32">
+                <CardContent className="p-4 h-full flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Total Interactions</p>
+                      <p className="text-xl font-semibold mt-1 text-white">
+                        {honeypots.reduce((acc, hp) => acc + hp.interaction_count, 0)}
+                      </p>
+                    </div>
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <MdNetworkCheck className="w-8 h-8 text-blue-400" />
+                    </motion.div>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <TrendingUp className="w-3 h-3 text-green-400 mr-1" />
+                    <span className="text-green-400">+23% from last week</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 1.1 }}
+            >
+              <Card className="bg-gray-900 border-gray-800 hover:bg-gray-800/50 transition-colors h-32">
+                <CardContent className="p-4 h-full flex items-center">
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <p className="text-gray-400 text-sm">Threat Detection</p>
+                      <p className="text-xl font-semibold mt-1 text-white">98.7%</p>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: [0, 360] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    >
+                      <MdRadar className="w-8 h-8 text-yellow-400" />
+                    </motion.div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 1.2 }}
+            >
+              <Card className="bg-gray-900 border-gray-800 hover:bg-gray-800/50 transition-colors h-32">
+                <CardContent className="p-4 h-full flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Security Score</p>
+                      <p className="text-xl font-semibold mt-1 text-green-400">Excellent</p>
+                    </div>
+                    <motion.div
+                      animate={{ 
+                        scale: [1, 1.1, 1],
+                        filter: ["brightness(1)", "brightness(1.2)", "brightness(1)"] 
+                      }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <HiShieldCheck className="w-8 h-8 text-green-400" />
+                    </motion.div>
+                  </div>
+                  <div className="flex items-center">
+                    <Badge variant="outline" className="text-xs bg-green-500/10 text-green-400 border-green-500/20">
+                      <CheckCircle className="w-3 h-3 mr-1" />All Systems Secure
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+          {/* Main Content Tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 1.3 }}
+          >
+            <Tabs defaultValue="assets" className="space-y-6">
+              <TabsList className="bg-gray-900 border-gray-800">
+              <TabsTrigger value="assets" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400">
+                <GiHoneypot className="w-4 h-4 mr-2" />Assets
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400">
+                <MdMonitorHeart className="w-4 h-4 mr-2" />Analytics
+              </TabsTrigger>
+              <TabsTrigger value="threats" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400">
+                <MdBugReport className="w-4 h-4 mr-2" />Threat Log
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="assets">
+              {/* Assets Table */}
+              <Card className="bg-gray-900 border-gray-800">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-white flex items-center">
+                      <GiHoneypot className="w-5 h-5 mr-2" />
+                      Honeypot Assets
+                    </CardTitle>
+                    <Button variant="outline" size="sm" className="border-gray-700 bg-transparent text-white hover:bg-gray-700 hover:text-white">
+                      <FaRobot className="w-4 h-4 mr-2" />Deploy New
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {loading ? (
+                    <div className="p-8 text-center text-gray-400">
+                      <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                      <p>Loading honeypots...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="p-8 text-center text-red-400">
+                      <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
+                      <p>{error}</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchHoneypots}
+                        className="mt-4 border-gray-700 text-white hover:bg-gray-700"
+                      >
+                        Try Again
+                      </Button>
+                    </div>
+                  ) : honeypots.length === 0 ? (
+                    <div className="p-8 text-center text-gray-400">
+                      <GiHoneypot className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No honeypots found</p>
+                    </div>
+                  ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm"></th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Asset</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Status</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Threat Level</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Activity</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Interactions</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Protection</th>
+                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {honeypots.map((asset, index) => (
+                          <motion.tr 
+                            key={asset.id} 
+                            className="border-b border-gray-800"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ 
+                              duration: 0.3, 
+                              delay: 1.4 + (index * 0.05),
+                              backgroundColor: { duration: 0.3, ease: "easeInOut" }
+                            }}
+                            whileHover={{ 
+                              backgroundColor: "rgba(55, 65, 81, 0.5)"
+                            }}
+                            style={{
+                              backgroundColor: "transparent"
+                            }}
+                          >
+                            <td className="px-6 py-4">
+                              <Button variant="ghost" size="sm" className="p-0 h-auto">
+                                <Star className={`w-4 h-4 ${asset.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400'}`} />
+                              </Button>
+                            </td>
+                            <td className="px-6 py-4">
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <div className="flex items-center gap-3 cursor-pointer">
+                                    <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+                                      <GiHoneypot className="w-5 h-5 text-amber-400" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-white">{asset.name}</p>
+                                      <p className="text-sm text-gray-400 font-mono">{asset.address}</p>
+                                    </div>
+                                  </div>
+                                </HoverCardTrigger>
+                                <HoverCardContent className="bg-gray-800 border-gray-700">
+                                  <div className="space-y-2">
+                                    <h4 className="text-sm font-semibold text-white">{asset.name} Honeypot</h4>
+                                    <p className="text-xs text-gray-400">Address: {asset.address}</p>
+                                    <p className="text-xs text-gray-400">Balance: {asset.balance} {asset.symbol}</p>
+                                    <p className="text-xs text-gray-400">Last Activity: {asset.lastActivity}</p>
+                                  </div>
+                                </HoverCardContent>
+                              </HoverCard>
+                            </td>
+                            <td className="px-6 py-4">
+                              {getStatusBadge(asset.status)}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel)}`}>
+                                    {asset.threatLevel.toUpperCase()}
+                                  </span>
+                                </div>
+                                <Progress 
+                                  value={getThreatProgress(asset.threatLevel)} 
+                                  className="h-1 w-16"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className={`flex items-center text-sm ${asset.change > 0 ? 'text-green-500' : asset.change < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                {asset.change > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : asset.change < 0 ? <TrendingDown className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
+                                <span className="text-xs text-gray-400">{asset.lastActivity}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge variant="outline" className="text-xs text-gray-300 border-gray-600">
+                                {asset.interaction_count} events
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={asset.protection === 'rsa' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}
+                                  >
+                                    <Lock className="w-3 h-3 mr-1" />
+                                    {asset.protection === 'rsa' ? 'RSA' : 'ECDSA'}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{asset.protection === 'rsa' ? 'RSA-2048 Encryption' : 'ECDSA Encryption'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </td>
+                            <td className="px-6 py-4">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-gray-900 border-gray-700">
+                                  <DropdownMenuItem 
+                                    className="text-white hover:bg-gray-800 focus:bg-gray-800 focus:text-white cursor-pointer"
+                                    onClick={() => setHoneypotDialogOpen(`details-${asset.id}`)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" />View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-white hover:bg-gray-800 focus:bg-gray-800 focus:text-white cursor-pointer"
+                                    onClick={() => setHoneypotDialogOpen(`configure-${asset.id}`)}
+                                  >
+                                    <Settings className="w-4 h-4 mr-2" />Configure
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator className="bg-gray-700" />
+                                  <DropdownMenuItem 
+                                    className="text-red-400 hover:bg-gray-800 focus:bg-gray-800 focus:text-red-400 cursor-pointer"
+                                    onClick={() => setHoneypotDialogOpen(`disable-${asset.id}`)}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-2" />Disable
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              <Card className="bg-gray-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white">Analytics Dashboard</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-gray-400">
+                    <MdMonitorHeart className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>Analytics dashboard coming soon...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="threats">
+              <Card className="bg-gray-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <MdBugReport className="w-5 h-5 mr-2 text-red-400" />
+                    Threat Detection Log
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Alert className="bg-red-500/10 border-red-500/20">
+                      <MdBugReport className="h-4 w-4 text-red-400" />
+                      <AlertDescription className="text-red-200">
+                        <strong>High Priority:</strong> Quantum Token honeypot detected suspicious activity (1 minute ago)
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-yellow-500/10 border-yellow-500/20">
+                      <MdBugReport className="h-4 w-4 text-yellow-400" />
+                      <AlertDescription className="text-yellow-200">
+                        <strong>Medium Priority:</strong> Bitcoin honeypot triggered - 3 interactions detected (5 minutes ago)
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-blue-500/10 border-blue-500/20">
+                      <MdRadar className="h-4 w-4 text-blue-400" />
+                      <AlertDescription className="text-blue-200">
+                        <strong>Info:</strong> Ethereum honeypot monitoring active (2 hours ago)
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* Configure Alerts Dialog */}
+      <Dialog open={alertsDialogOpen} onOpenChange={setAlertsDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2 text-red-400" />
+              Configure Alerts
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Set up alert preferences for threat detection and monitoring.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-white">Email Alerts</label>
+                <p className="text-xs text-gray-400">Receive email notifications for threats</p>
+              </div>
+              <Switch 
+                checked={settings.emailAlerts}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, emailAlerts: checked }))}
+                className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-white">Auto Response</label>
+                <p className="text-xs text-gray-400">Automatically respond to detected threats</p>
+              </div>
+              <Switch 
+                checked={settings.autoResponse}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, autoResponse: checked }))}
+                className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Threat Threshold</label>
+              <Select value={settings.threatThreshold} onValueChange={(value) => setSettings(prev => ({ ...prev, threatThreshold: value }))}>
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="low" className="text-white">Low - Alert on all activities</SelectItem>
+                  <SelectItem value="medium" className="text-white">Medium - Alert on suspicious activities</SelectItem>
+                  <SelectItem value="high" className="text-white">High - Alert only on confirmed threats</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlertsDialogOpen(false)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateSettings} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notification Settings Dialog */}
+      <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <MdMonitorHeart className="w-5 h-5 mr-2 text-blue-400" />
+              Notification Settings
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Manage how and when you receive notifications.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-white">Push Notifications</label>
+                <p className="text-xs text-gray-400">Receive browser push notifications</p>
+              </div>
+              <Switch 
+                checked={settings.pushNotifications}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, pushNotifications: checked }))}
+                className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Monitoring Interval (minutes)</label>
+              <Input 
+                type="number"
+                value={settings.monitoringInterval}
+                onChange={(e) => setSettings(prev => ({ ...prev, monitoringInterval: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white"
+                min="1"
+                max="60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Data Retention (days)</label>
+              <Input 
+                type="number"
+                value={settings.retentionPeriod}
+                onChange={(e) => setSettings(prev => ({ ...prev, retentionPeriod: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white"
+                min="1"
+                max="365"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotificationDialogOpen(false)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateSettings} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Advanced Settings Dialog */}
+      <Dialog open={advancedDialogOpen} onOpenChange={setAdvancedDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <HiCpuChip className="w-5 h-5 mr-2 text-purple-400" />
+              Advanced Settings
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Configure advanced security and routing features.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Routing Method</label>
+              <Select defaultValue="classical">
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="classical" className="text-white">Classical - Standard routing</SelectItem>
+                  <SelectItem value="post_quantum" className="text-white">Post-Quantum - When threats detected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Default Encryption</label>
+              <Select defaultValue="ecdsa">
+                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="rsa" className="text-white">RSA-2048</SelectItem>
+                  <SelectItem value="ecdsa" className="text-white">ECDSA (Recommended)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-xs text-blue-200">
+                <strong>Info:</strong> The system will automatically switch to post-quantum routing when threats are detected.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdvancedDialogOpen(false)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateSettings} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
+              Apply Settings
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Honeypot Action Dialogs */}
+      {honeypots.map((asset) => (
+        <React.Fragment key={asset.id}>
+          {/* View Details Dialog */}
+          <Dialog open={honeypotDialogOpen === `details-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
+            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-white flex items-center">
+                  <GiHoneypot className="w-5 h-5 mr-2 text-amber-400" />
+                  {asset.name} Details
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Detailed information about this honeypot asset.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-400">Asset Type</label>
+                    <p className="text-sm text-white">{asset.name} ({asset.symbol})</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Status</label>
+                    <div className="mt-1">{getStatusBadge(asset.status)}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Address</label>
+                    <p className="text-sm text-white font-mono">{asset.address}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Balance</label>
+                    <p className="text-sm text-white">{asset.balance} {asset.symbol}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Threat Level</label>
+                    <p className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel)}`}>
+                      {asset.threatLevel.toUpperCase()}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Interactions</label>
+                    <p className="text-sm text-white">{asset.interactions} events</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Protection Level</label>
+                  <Badge 
+                    className={asset.protection === 'rsa' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 mt-1' : 'bg-green-500/10 text-green-400 border-green-500/20 mt-1'}
+                  >
+                    <Lock className="w-3 h-3 mr-1" />
+                    {asset.protection === 'rsa' ? 'RSA-2048 Encryption' : 'ECDSA Encryption'}
+                  </Badge>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Last Activity</label>
+                  <p className="text-sm text-white">{asset.lastActivity}</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Configure Dialog */}
+          <Dialog open={honeypotDialogOpen === `configure-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
+            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white flex items-center">
+                  <Settings className="w-5 h-5 mr-2 text-blue-400" />
+                  Configure {asset.name}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Adjust settings for this honeypot.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Monitoring Sensitivity</label>
+                  <Select defaultValue={asset.threatLevel}>
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700">
+                      <SelectItem value="low" className="text-white">Low Sensitivity</SelectItem>
+                      <SelectItem value="medium" className="text-white">Medium Sensitivity</SelectItem>
+                      <SelectItem value="high" className="text-white">High Sensitivity</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Protection Type</label>
+                  <Select defaultValue={asset.protection}>
+                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700">
+                      <SelectItem value="rsa" className="text-white">RSA-2048</SelectItem>
+                      <SelectItem value="ecdsa" className="text-white">ECDSA</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-white">Auto-Response</label>
+                    <p className="text-xs text-gray-400">Automatically respond to threats</p>
+                  </div>
+                  <Switch 
+                    defaultChecked 
+                    className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-600 border-gray-500"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+                  Cancel
+                </Button>
+                <Button onClick={() => {
+                  const config = {
+                    monitoring_sensitivity: document.querySelector(`[data-honeypot-${asset.id}-sensitivity]`)?.getAttribute('data-value') || asset.threatLevel,
+                    protection_type: document.querySelector(`[data-honeypot-${asset.id}-protection]`)?.getAttribute('data-value') || asset.protection,
+                    auto_response: true
+                  };
+                  handleConfigureHoneypot(asset.id, config);
+                }} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Disable Dialog */}
+          <Dialog open={honeypotDialogOpen === `disable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
+            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white flex items-center">
+                  <XCircle className="w-5 h-5 mr-2 text-red-400" />
+                  Disable {asset.name}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Are you sure you want to disable this honeypot? This action can be reversed later.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-sm text-red-200">
+                  <strong>Warning:</strong> Disabling this honeypot will stop all monitoring and threat detection for this asset.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white hover:border-gray-500">
+                  Cancel
+                </Button>
+                <Button onClick={() => handleDisableHoneypot(asset.id)} className="bg-red-800 hover:bg-red-700 text-red-100 border border-red-700">
+                  Disable Honeypot
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </React.Fragment>
+      ))}
+    </TooltipProvider>
+
+  )
+}
