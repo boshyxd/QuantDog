@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     # Core frameworks
-    "streamlit>=1.29.0",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     
@@ -141,8 +140,8 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.ruff.lint.isort]
-known-third-party = ["streamlit", "qiskit", "pandas", "numpy", "web3"]
+known-third-party = ["qiskit", "pandas", "numpy", "web3"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # imported but unused
-"ui/*.py" = ["E402"]  # module level import not at top of file (common in Streamlit)
+"ui/*.py" = ["E402"]  # module level import not at top of file

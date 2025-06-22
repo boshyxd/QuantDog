@@ -12,7 +12,7 @@ install: install-uv
 	$(UV) sync --all-extras
 
 run:
-	$(UV) run streamlit run app.py
+	$(UV) run uvicorn api:app --reload --port 8000
 
 run-api:
 	$(UV) run uvicorn api:app --reload --port 8000

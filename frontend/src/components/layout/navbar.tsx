@@ -17,10 +17,10 @@ const navItems = [
 
 export function Navbar({ className, ...props }: NavbarProps) {
   return (
-    <div className={cn("h-16 bg-gray-950/60 border-b border-gray-800", className)} {...props}>
+    <div className={cn("h-16 bg-[#313244] border-b border-[#7f849c]", className)} {...props}>
       <div className="flex items-center justify-between h-full px-4">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-semibold text-white">Assets</h1>
+          <h1 className="text-xl font-semibold text-[#cdd6f4]">Assets</h1>
           
           <div className="hidden md:flex items-center" style={{ height: '50px', position: 'relative' }}>
             <GooeyNav
@@ -38,21 +38,21 @@ export function Navbar({ className, ...props }: NavbarProps) {
 
         <div className="flex items-center gap-4">
           <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#a6adc8]" />
             <input
               type="text"
               placeholder="Search"
-              className="pl-10 pr-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-gray-700"
+              className="pl-10 pr-4 py-2 bg-[#45475a] border border-[#7f849c] rounded-lg text-sm text-[#cdd6f4] placeholder-[#a6adc8] focus:outline-none focus:border-[#6c7086]"
             />
           </div>
           
-          <Button className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-700">
+          <Button className="bg-[#89b4fa] hover:bg-[#74c7ec] text-[#1e1e2e] border border-[#89dceb]">
             Deploy Honeypot
           </Button>
           
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-gray-800">
+          <Button variant="ghost" size="sm" className="text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-800 rounded-full"></div>
+              <div className="w-8 h-8 bg-[#585b70] rounded-full"></div>
               <ChevronDown className="h-4 w-4" />
             </div>
           </Button>

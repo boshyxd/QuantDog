@@ -100,16 +100,41 @@ class ApiService {
       if (hp.last_interaction) {
         lastActivity = new Date(hp.last_interaction).toLocaleString();
       } else if (hp.activated_at) {
-        const activatedDate = new Date(hp.activated_at);
-        const now = new Date();
-        const diffMs = now.getTime() - activatedDate.getTime();
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        
-        if (diffHours > 0) {
-          lastActivity = `Active for ${diffHours}h ${diffMins}m`;
-        } else {
-          lastActivity = `Active for ${diffMins}m`;
+        try {
+          const activatedDate = new Date(hp.activated_at);
+          const now = new Date();
+          
+          // Debug logging (can be removed in production)
+          // console.log(`Honeypot ${hp.id}: activated_at=${hp.activated_at}, parsed=${activatedDate}, now=${now}`);
+          
+          // Check if the date is valid
+          if (isNaN(activatedDate.getTime())) {
+            lastActivity = 'Invalid date';
+          } else {
+            const diffMs = now.getTime() - activatedDate.getTime();
+            
+            // Check if diffMs is negative (future date)
+            if (diffMs < 0) {
+              lastActivity = 'Future date detected';
+            } else {
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+              const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              
+              if (diffDays > 0) {
+                lastActivity = `Active for ${diffDays}d ${diffHours}h`;
+              } else if (diffHours > 0) {
+                lastActivity = `Active for ${diffHours}h ${diffMins}m`;
+              } else if (diffMins > 0) {
+                lastActivity = `Active for ${diffMins}m`;
+              } else {
+                lastActivity = 'Active for <1m';
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error calculating time for ${hp.id}:`, error);
+          lastActivity = 'Calculation error';
         }
       }
 

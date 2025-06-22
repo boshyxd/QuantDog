@@ -37,7 +37,7 @@ const menuItems = [
 
 export function Sidebar({ className, ...props }: SidebarProps) {
   return (
-    <div className={cn("w-16 bg-gray-950/60 border-r border-gray-800", className)} {...props}>
+    <div className={cn("w-16 bg-[#313244] border-r border-[#7f849c]", className)} {...props}>
       <div className="flex flex-col h-full">
         <div className="p-4">
           {/* Logo removed for now */}
@@ -52,8 +52,8 @@ export function Sidebar({ className, ...props }: SidebarProps) {
               className={cn(
                 "w-12 h-12 mb-1",
                 item.active 
-                  ? "text-white bg-gray-800" 
-                  : "text-gray-400 hover:text-white hover:bg-gray-800"
+                  ? "text-[#cdd6f4] bg-[#45475a]" 
+                  : "text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]"
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -61,8 +61,8 @@ export function Sidebar({ className, ...props }: SidebarProps) {
           ))}
         </nav>
         
-        <div className="p-2 border-t border-gray-800">
-          <Button variant="ghost" size="icon" className="w-12 h-12 text-gray-400 hover:text-white hover:bg-gray-800">
+        <div className="p-2 border-t border-[#7f849c]">
+          <Button variant="ghost" size="icon" className="w-12 h-12 text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]">
             <Settings className="h-5 w-5" />
           </Button>
         </div>

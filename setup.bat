@@ -52,7 +52,7 @@ echo.
 echo ✓ Setup complete!
 echo.
 echo To start the app, run:
-echo    uv run streamlit run app.py
+echo    uv run uvicorn api:app --reload --port 8000
 echo.
 echo Other useful commands:
 echo    uv run pytest tests/     # Run tests

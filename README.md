@@ -63,12 +63,6 @@ uv run uvicorn api:app --reload
 cd frontend && npm start
 ```
 
-#### Option 3: Run legacy Streamlit UI
-```bash
-make run
-# Or: uv run streamlit run app.py
-```
-
 ## API Documentation
 
 Once the backend is running, visit:
@@ -116,8 +110,7 @@ QuantDog/
 │   ├── src/
 │   ├── public/
 │   └── package.json
-├── api.py              # FastAPI entry point
-├── app.py              # Streamlit app (legacy)
+├── main.py             # FastAPI entry point
 └── Makefile            # Development commands
 ```
 
