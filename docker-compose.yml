@@ -1,0 +1,21 @@
+name: "quantdog"
+
+services:
+  mq:
+    image: rabbitmq:3
+    restart: unless-stopped
+    hostname: rabbitmq.quantdog.app
+    environment:
+      RABBITMQ_DEFAULT_USER: quantdog
+      RABBITMQ_DEFAULT_PASS: quantdog
+
+  client:
+    build:
+      context: .
+      dockerfile: client/demo.dockerfile
+    restart: unless-stopped
+    deploy:
+      replicas: 3
+
+networks:
+  client-demo:
