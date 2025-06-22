@@ -37,7 +37,7 @@ const menuItems = [
 
 export function Sidebar({ className, ...props }: SidebarProps) {
   return (
-    <div className={cn("w-16 bg-[#313244] border-r border-[#7f849c]", className)} {...props}>
+    <div className={cn("w-16 bg-sidebar border-r border-sidebar-border", className)} {...props}>
       <div className="flex flex-col h-full">
         <div className="p-4">
           {/* Logo removed for now */}
@@ -52,8 +52,8 @@ export function Sidebar({ className, ...props }: SidebarProps) {
               className={cn(
                 "w-12 h-12 mb-1",
                 item.active 
-                  ? "text-[#cdd6f4] bg-[#45475a]" 
-                  : "text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]"
+                  ? "text-sidebar-foreground bg-sidebar-accent" 
+                  : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -61,8 +61,8 @@ export function Sidebar({ className, ...props }: SidebarProps) {
           ))}
         </nav>
         
-        <div className="p-2 border-t border-[#7f849c]">
-          <Button variant="ghost" size="icon" className="w-12 h-12 text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]">
+        <div className="p-2 border-t border-sidebar-border">
+          <Button variant="ghost" size="icon" className="w-12 h-12 text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent">
             <Settings className="h-5 w-5" />
           </Button>
         </div>

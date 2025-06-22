@@ -17,10 +17,10 @@ const navItems = [
 
 export function Navbar({ className, ...props }: NavbarProps) {
   return (
-    <div className={cn("h-16 bg-[#313244] border-b border-[#7f849c]", className)} {...props}>
+    <div className={cn("h-16 bg-card border-b border-border", className)} {...props}>
       <div className="flex items-center justify-between h-full px-4">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-semibold text-[#cdd6f4]">Assets</h1>
+          <h1 className="text-xl font-semibold text-foreground">Assets</h1>
           
           <div className="hidden md:flex items-center" style={{ height: '50px', position: 'relative' }}>
             <GooeyNav
@@ -38,21 +38,21 @@ export function Navbar({ className, ...props }: NavbarProps) {
 
         <div className="flex items-center gap-4">
           <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#a6adc8]" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search"
-              className="pl-10 pr-4 py-2 bg-[#45475a] border border-[#7f849c] rounded-lg text-sm text-[#cdd6f4] placeholder-[#a6adc8] focus:outline-none focus:border-[#6c7086]"
+              className="pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           
-          <Button className="bg-[#89b4fa] hover:bg-[#74c7ec] text-[#1e1e2e] border border-[#89dceb]">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
             Deploy Honeypot
           </Button>
           
-          <Button variant="ghost" size="sm" className="text-[#a6adc8] hover:text-[#cdd6f4] hover:bg-[#45475a]">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-accent">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#585b70] rounded-full"></div>
+              <div className="w-8 h-8 bg-muted rounded-full"></div>
               <ChevronDown className="h-4 w-4" />
             </div>
           </Button>

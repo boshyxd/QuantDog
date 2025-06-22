@@ -67,6 +67,8 @@ import {
   Trash2
 } from "lucide-react"
 import { apiService, type Honeypot } from "@/services/api"
+import { webSocketService, type HoneypotCompromisedData } from "@/services/websocket"
+import { toast } from "sonner"
 
 // Honeypots data will be fetched from API
 
@@ -79,7 +81,7 @@ const getStatusBadge = (status: string) => {
     case "monitoring":
       return <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20"><Eye className="w-3 h-3 mr-1" />Monitoring</Badge>
     case "disabled":
-      return <Badge variant="outline" className="bg-gray-500/10 text-gray-400 border-gray-500/20"><XCircle className="w-3 h-3 mr-1" />Disabled</Badge>
+      return <Badge variant="outline" className="bg-gray-500/10 text-muted-foreground border-gray-500/20"><XCircle className="w-3 h-3 mr-1" />Disabled</Badge>
     default:
       return <Badge variant="outline"><XCircle className="w-3 h-3 mr-1" />Unknown</Badge>
   }
@@ -90,7 +92,7 @@ const getThreatLevelColor = (level: string) => {
     case "low": return "text-green-400"
     case "medium": return "text-yellow-400"
     case "high": return "text-red-400"
-    default: return "text-gray-400"
+    default: return "text-muted-foreground"
   }
 }
 
@@ -181,9 +183,43 @@ export function HoneypotsPage() {
     }
   }, [])
   
-  // Initial load
+  // Initial load and WebSocket setup
   React.useEffect(() => {
     fetchHoneypots()
+    
+    // Connect to WebSocket for real-time updates
+    webSocketService.connect()
+    
+    // Listen for honeypot compromised events
+    const unsubscribeCompromised = webSocketService.on('honeypot_compromised', (data: HoneypotCompromisedData) => {
+      console.log('🚨 Honeypot compromised event received:', data)
+      
+      // Show toast notification with critical styling
+      toast.error(`CRITICAL: ${data.honeypot_name} COMPROMISED!`, {
+        description: `${data.amount_drained} ${data.blockchain.toUpperCase()} drained from ${data.wallet_address}. Auto-response: ${data.auto_responded ? 'Active' : 'Inactive'}`,
+        duration: 10000, // Show for 10 seconds
+        action: {
+          label: "View Details",
+          onClick: () => console.log("Viewing honeypot details")
+        }
+      })
+      
+      // Refresh honeypots data
+      fetchHoneypots()
+    })
+    
+    // Listen for general honeypot updates
+    const unsubscribeUpdates = webSocketService.on('honeypots_updated', () => {
+      console.log('🔄 Honeypots updated event received, refreshing data...')
+      fetchHoneypots()
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      unsubscribeCompromised()
+      unsubscribeUpdates()
+      webSocketService.disconnect()
+    }
   }, [])
   
   // Handle honeypot configuration
@@ -294,7 +330,7 @@ export function HoneypotsPage() {
     <TooltipProvider>
       <motion.div 
         ref={ref}
-        className="flex-1 bg-[#1e1e2e] text-[#cdd6f4]"
+        className="flex-1 bg-background text-foreground"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -317,7 +353,7 @@ export function HoneypotsPage() {
                 Honeypot Dashboard
               </motion.h1>
               <motion.p 
-                className="text-gray-400"
+                className="text-muted-foreground"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
@@ -336,7 +372,7 @@ export function HoneypotsPage() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="border-[#6c7086] bg-transparent text-[#cdd6f4] hover:bg-[#585b70] hover:text-[#cdd6f4]"
+                    className="border-border bg-transparent text-foreground hover:bg-accent hover:text-foreground"
                     onClick={fetchHoneypots}
                     disabled={loading}
                   >
@@ -350,7 +386,7 @@ export function HoneypotsPage() {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" className="border-[#6c7086] bg-transparent text-[#cdd6f4] hover:bg-[#585b70] hover:text-[#cdd6f4]">
+                  <Button variant="outline" size="sm" className="border-border bg-transparent text-foreground hover:bg-accent hover:text-foreground">
                     <Download className="w-4 h-4 mr-2" />Export
                   </Button>
                 </TooltipTrigger>
@@ -360,26 +396,26 @@ export function HoneypotsPage() {
               </Tooltip>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="border-[#6c7086] bg-transparent text-[#cdd6f4] hover:bg-[#585b70] hover:text-[#cdd6f4]">
+                  <Button variant="outline" size="sm" className="border-border bg-transparent text-foreground hover:bg-accent hover:text-foreground">
                     <Settings className="w-4 h-4 mr-2" />Settings
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-[#313244] border-[#6c7086]">
+                <DropdownMenuContent align="end" className="bg-card border-border">
                   <DropdownMenuItem 
-                    className="text-[#cdd6f4] hover:bg-[#45475a] focus:bg-[#45475a] focus:text-[#cdd6f4] cursor-pointer"
+                    className="text-foreground hover:bg-accent focus:bg-accent focus:text-foreground cursor-pointer"
                     onClick={() => setAlertsDialogOpen(true)}
                   >
                     Configure Alerts
                   </DropdownMenuItem>
                   <DropdownMenuItem 
-                    className="text-[#cdd6f4] hover:bg-[#45475a] focus:bg-[#45475a] focus:text-[#cdd6f4] cursor-pointer"
+                    className="text-foreground hover:bg-accent focus:bg-accent focus:text-foreground cursor-pointer"
                     onClick={() => setNotificationDialogOpen(true)}
                   >
                     Notification Settings
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-[#585b70]" />
+                  <DropdownMenuSeparator className="bg-secondary" />
                   <DropdownMenuItem 
-                    className="text-[#cdd6f4] hover:bg-[#45475a] focus:bg-[#45475a] focus:text-[#cdd6f4] cursor-pointer"
+                    className="text-foreground hover:bg-accent focus:bg-accent focus:text-foreground cursor-pointer"
                     onClick={() => setAdvancedDialogOpen(true)}
                   >
                     Advanced Settings
@@ -410,7 +446,7 @@ export function HoneypotsPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.6 }}
           >
-            <p className="text-gray-400 text-sm mb-1">Total Portfolio Value</p>
+            <p className="text-muted-foreground text-sm mb-1">Total Portfolio Value</p>
             <motion.h2 
               className="text-3xl font-semibold"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -420,7 +456,7 @@ export function HoneypotsPage() {
               $0.00
             </motion.h2>
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-gray-400 text-sm">24h</span>
+              <span className="text-muted-foreground text-sm">24h</span>
               <span className="text-green-500 text-sm flex items-center">
                 <TrendingUp className="w-3 h-3 mr-1" />
                 0.00%
@@ -440,12 +476,12 @@ export function HoneypotsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.9 }}
             >
-              <Card className="bg-[#313244] border-[#7f849c] hover:bg-[#45475a]/50 transition-colors h-32">
+              <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex items-center">
                   <div className="flex items-center justify-between w-full">
                     <div>
-                      <p className="text-gray-400 text-sm">Active Honeypots</p>
-                      <p className="text-xl font-semibold mt-1 text-[#cdd6f4]">{honeypots.length}</p>
+                      <p className="text-muted-foreground text-sm">Active Honeypots</p>
+                      <p className="text-xl font-semibold mt-1 text-foreground">{honeypots.length}</p>
                     </div>
                     <motion.div
                       animate={{ rotate: [0, 10, 0] }}
@@ -462,12 +498,12 @@ export function HoneypotsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 1.0 }}
             >
-              <Card className="bg-[#313244] border-[#7f849c] hover:bg-[#45475a]/50 transition-colors h-32">
+              <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex flex-col justify-between">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm">Total Interactions</p>
-                      <p className="text-xl font-semibold mt-1 text-[#cdd6f4]">
+                      <p className="text-muted-foreground text-sm">Total Interactions</p>
+                      <p className="text-xl font-semibold mt-1 text-foreground">
                         {honeypots.reduce((acc, hp) => acc + hp.interaction_count, 0)}
                       </p>
                     </div>
@@ -490,12 +526,12 @@ export function HoneypotsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 1.1 }}
             >
-              <Card className="bg-[#313244] border-[#7f849c] hover:bg-[#45475a]/50 transition-colors h-32">
+              <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex items-center">
                   <div className="flex items-center justify-between w-full">
                     <div>
-                      <p className="text-gray-400 text-sm">Threat Detection</p>
-                      <p className="text-xl font-semibold mt-1 text-[#cdd6f4]">98.7%</p>
+                      <p className="text-muted-foreground text-sm">Threat Detection</p>
+                      <p className="text-xl font-semibold mt-1 text-foreground">98.7%</p>
                     </div>
                     <motion.div
                       animate={{ rotate: [0, 360] }}
@@ -512,11 +548,11 @@ export function HoneypotsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 1.2 }}
             >
-              <Card className="bg-[#313244] border-[#7f849c] hover:bg-[#45475a]/50 transition-colors h-32">
+              <Card className="bg-card border-border hover:bg-accent/50 transition-colors h-32">
                 <CardContent className="p-4 h-full flex flex-col justify-between">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm">Security Score</p>
+                      <p className="text-muted-foreground text-sm">Security Score</p>
                       <p className="text-xl font-semibold mt-1 text-green-400">Excellent</p>
                     </div>
                     <motion.div
@@ -546,31 +582,31 @@ export function HoneypotsPage() {
             transition={{ duration: 0.6, delay: 1.3 }}
           >
             <Tabs defaultValue="assets" className="space-y-6">
-              <TabsList className="bg-[#313244] border-[#7f849c]">
-              <TabsTrigger value="assets" className="data-[state=active]:bg-[#45475a] data-[state=active]:text-[#cdd6f4] text-gray-400">
+              <TabsList className="bg-card border-border">
+              <TabsTrigger value="assets" className="data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground">
                 <GiHoneypot className="w-4 h-4 mr-2" />Assets
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="data-[state=active]:bg-[#45475a] data-[state=active]:text-[#cdd6f4] text-gray-400">
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground">
                 <MdMonitorHeart className="w-4 h-4 mr-2" />Analytics
               </TabsTrigger>
-              <TabsTrigger value="threats" className="data-[state=active]:bg-[#45475a] data-[state=active]:text-[#cdd6f4] text-gray-400">
+              <TabsTrigger value="threats" className="data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground">
                 <MdBugReport className="w-4 h-4 mr-2" />Threat Log
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="assets">
               {/* Assets Table */}
-              <Card className="bg-[#313244] border-[#7f849c]">
+              <Card className="bg-card border-border">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-[#cdd6f4] flex items-center">
+                    <CardTitle className="text-foreground flex items-center">
                       <GiHoneypot className="w-5 h-5 mr-2" />
                       Honeypot Assets
                     </CardTitle>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="border-[#6c7086] bg-transparent text-[#cdd6f4] hover:bg-[#585b70] hover:text-[#cdd6f4]"
+                      className="border-border bg-transparent text-foreground hover:bg-accent hover:text-foreground"
                       onClick={() => setDeployDialogOpen(true)}
                     >
                       <FaRobot className="w-4 h-4 mr-2" />Deploy New
@@ -579,7 +615,7 @@ export function HoneypotsPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   {loading ? (
-                    <div className="p-8 text-center text-gray-400">
+                    <div className="p-8 text-center text-muted-foreground">
                       <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
                       <p>Loading honeypots...</p>
                     </div>
@@ -591,13 +627,13 @@ export function HoneypotsPage() {
                         variant="outline" 
                         size="sm" 
                         onClick={fetchHoneypots}
-                        className="mt-4 border-[#6c7086] text-[#cdd6f4] hover:bg-[#585b70]"
+                        className="mt-4 border-border text-foreground hover:bg-accent"
                       >
                         Try Again
                       </Button>
                     </div>
                   ) : honeypots.length === 0 ? (
-                    <div className="p-8 text-center text-gray-400">
+                    <div className="p-8 text-center text-muted-foreground">
                       <GiHoneypot className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>No honeypots found</p>
                     </div>
@@ -605,22 +641,22 @@ export function HoneypotsPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-[#7f849c]">
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm"></th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Asset</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Status</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Threat Level</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Activity</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Interactions</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Protection</th>
-                          <th className="text-left px-6 py-3 text-gray-400 font-normal text-sm">Actions</th>
+                        <tr className="border-b border-border">
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm"></th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Asset</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Status</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Threat Level</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Activity</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Interactions</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Protection</th>
+                          <th className="text-left px-6 py-3 text-muted-foreground font-normal text-sm">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {honeypots.map((asset, index) => (
                           <motion.tr 
                             key={asset.id} 
-                            className="border-b border-[#7f849c]"
+                            className="border-b border-border"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ 
@@ -637,28 +673,28 @@ export function HoneypotsPage() {
                           >
                             <td className="px-6 py-4">
                               <Button variant="ghost" size="sm" className="p-0 h-auto" onClick={() => handleStarToggle(asset.id)}>
-                                <Star className={`w-4 h-4 ${asset.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400'}`} />
+                                <Star className={`w-4 h-4 ${asset.starred ? 'fill-yellow-500 text-yellow-500' : 'text-muted-foreground'}`} />
                               </Button>
                             </td>
                             <td className="px-6 py-4">
                               <HoverCard>
                                 <HoverCardTrigger asChild>
                                   <div className="flex items-center gap-3 cursor-pointer">
-                                    <div className="w-8 h-8 bg-[#45475a] rounded-lg flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
                                       <GiHoneypot className="w-5 h-5 text-amber-400" />
                                     </div>
                                     <div>
-                                      <p className="font-medium text-[#cdd6f4]">{asset.name}</p>
-                                      <p className="text-sm text-gray-400 font-mono">{asset.address}</p>
+                                      <p className="font-medium text-foreground">{asset.name}</p>
+                                      <p className="text-sm text-muted-foreground font-mono">{asset.address}</p>
                                     </div>
                                   </div>
                                 </HoverCardTrigger>
-                                <HoverCardContent className="bg-[#45475a] border-[#6c7086]">
+                                <HoverCardContent className="bg-accent border-border">
                                   <div className="space-y-2">
-                                    <h4 className="text-sm font-semibold text-[#cdd6f4]">{asset.name} Honeypot</h4>
-                                    <p className="text-xs text-gray-400">Address: {asset.address}</p>
-                                    <p className="text-xs text-gray-400">Balance: {asset.balance} {asset.symbol}</p>
-                                    <p className="text-xs text-gray-400">Last Activity: {asset.lastActivity}</p>
+                                    <h4 className="text-sm font-semibold text-foreground">{asset.name} Honeypot</h4>
+                                    <p className="text-xs text-muted-foreground">Address: {asset.address}</p>
+                                    <p className="text-xs text-muted-foreground">Balance: {asset.balance} {asset.symbol}</p>
+                                    <p className="text-xs text-muted-foreground">Last Activity: {asset.lastActivity}</p>
                                   </div>
                                 </HoverCardContent>
                               </HoverCard>
@@ -680,9 +716,9 @@ export function HoneypotsPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <div className={`flex items-center text-sm ${asset.change > 0 ? 'text-green-500' : asset.change < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                              <div className={`flex items-center text-sm ${asset.change > 0 ? 'text-green-500' : asset.change < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
                                 {asset.change > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : asset.change < 0 ? <TrendingDown className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
-                                <span className="text-xs text-gray-400">{asset.lastActivity}</span>
+                                <span className="text-xs text-muted-foreground">{asset.lastActivity}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -709,42 +745,42 @@ export function HoneypotsPage() {
                             <td className="px-6 py-4">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-[#cdd6f4]">
+                                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                                     <MoreHorizontal className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-[#313244] border-[#6c7086]">
+                                <DropdownMenuContent align="end" className="bg-card border-border">
                                   <DropdownMenuItem 
-                                    className="text-[#cdd6f4] hover:bg-[#45475a] focus:bg-[#45475a] focus:text-[#cdd6f4] cursor-pointer"
+                                    className="text-foreground hover:bg-accent focus:bg-accent focus:text-foreground cursor-pointer"
                                     onClick={() => setHoneypotDialogOpen(`details-${asset.id}`)}
                                   >
                                     <Eye className="w-4 h-4 mr-2" />View Details
                                   </DropdownMenuItem>
                                   <DropdownMenuItem 
-                                    className="text-[#cdd6f4] hover:bg-[#45475a] focus:bg-[#45475a] focus:text-[#cdd6f4] cursor-pointer"
+                                    className="text-foreground hover:bg-accent focus:bg-accent focus:text-foreground cursor-pointer"
                                     onClick={() => setHoneypotDialogOpen(`configure-${asset.id}`)}
                                   >
                                     <Settings className="w-4 h-4 mr-2" />Configure
                                   </DropdownMenuItem>
-                                  <DropdownMenuSeparator className="bg-[#585b70]" />
+                                  <DropdownMenuSeparator className="bg-secondary" />
                                   {asset.status === "disabled" ? (
                                     <DropdownMenuItem 
-                                      className="text-green-400 hover:bg-[#45475a] focus:bg-[#45475a] focus:text-green-400 cursor-pointer"
+                                      className="text-green-400 hover:bg-accent focus:bg-accent focus:text-green-400 cursor-pointer"
                                       onClick={() => setHoneypotDialogOpen(`enable-${asset.id}`)}
                                     >
                                       <CheckCircle className="w-4 h-4 mr-2" />Enable
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem 
-                                      className="text-red-400 hover:bg-[#45475a] focus:bg-[#45475a] focus:text-red-400 cursor-pointer"
+                                      className="text-red-400 hover:bg-accent focus:bg-accent focus:text-red-400 cursor-pointer"
                                       onClick={() => setHoneypotDialogOpen(`disable-${asset.id}`)}
                                     >
                                       <XCircle className="w-4 h-4 mr-2" />Disable
                                     </DropdownMenuItem>
                                   )}
-                                  <DropdownMenuSeparator className="bg-[#585b70]" />
+                                  <DropdownMenuSeparator className="bg-secondary" />
                                   <DropdownMenuItem 
-                                    className="text-red-400 hover:bg-[#45475a] focus:bg-[#45475a] focus:text-red-400 cursor-pointer"
+                                    className="text-red-400 hover:bg-accent focus:bg-accent focus:text-red-400 cursor-pointer"
                                     onClick={() => setHoneypotDialogOpen(`delete-${asset.id}`)}
                                   >
                                     <Trash2 className="w-4 h-4 mr-2" />Delete
@@ -763,12 +799,12 @@ export function HoneypotsPage() {
             </TabsContent>
 
             <TabsContent value="analytics">
-              <Card className="bg-[#313244] border-[#7f849c]">
+              <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-[#cdd6f4]">Analytics Dashboard</CardTitle>
+                  <CardTitle className="text-foreground">Analytics Dashboard</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-muted-foreground">
                     <MdMonitorHeart className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p>Analytics dashboard coming soon...</p>
                   </div>
@@ -777,9 +813,9 @@ export function HoneypotsPage() {
             </TabsContent>
 
             <TabsContent value="threats">
-              <Card className="bg-[#313244] border-[#7f849c]">
+              <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-[#cdd6f4] flex items-center">
+                  <CardTitle className="text-foreground flex items-center">
                     <MdBugReport className="w-5 h-5 mr-2 text-red-400" />
                     Threat Detection Log
                   </CardTitle>
@@ -815,21 +851,21 @@ export function HoneypotsPage() {
 
       {/* Configure Alerts Dialog */}
       <Dialog open={alertsDialogOpen} onOpenChange={setAlertsDialogOpen}>
-        <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#cdd6f4] flex items-center">
+            <DialogTitle className="text-foreground flex items-center">
               <AlertTriangle className="w-5 h-5 mr-2 text-red-400" />
               Configure Alerts
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Set up alert preferences for threat detection and monitoring.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-[#cdd6f4]">Email Alerts</label>
-                <p className="text-xs text-gray-400">Receive email notifications for threats</p>
+                <label className="text-sm font-medium text-foreground">Email Alerts</label>
+                <p className="text-xs text-muted-foreground">Receive email notifications for threats</p>
               </div>
               <Switch 
                 checked={settings.emailAlerts}
@@ -839,8 +875,8 @@ export function HoneypotsPage() {
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-[#cdd6f4]">Auto Response</label>
-                <p className="text-xs text-gray-400">Automatically respond to detected threats</p>
+                <label className="text-sm font-medium text-foreground">Auto Response</label>
+                <p className="text-xs text-muted-foreground">Automatically respond to detected threats</p>
               </div>
               <Switch 
                 checked={settings.autoResponse}
@@ -849,24 +885,24 @@ export function HoneypotsPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Threat Threshold</label>
+              <label className="text-sm font-medium text-foreground">Threat Threshold</label>
               <Select value={settings.threatThreshold} onValueChange={(value) => setSettings(prev => ({ ...prev, threatThreshold: value }))}>
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="low" className="text-[#cdd6f4]">Low - Alert on all activities</SelectItem>
-                  <SelectItem value="medium" className="text-[#cdd6f4]">Medium - Alert on suspicious activities</SelectItem>
-                  <SelectItem value="high" className="text-[#cdd6f4]">High - Alert only on confirmed threats</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="low" className="text-foreground">Low - Alert on all activities</SelectItem>
+                  <SelectItem value="medium" className="text-foreground">Medium - Alert on suspicious activities</SelectItem>
+                  <SelectItem value="high" className="text-foreground">High - Alert only on confirmed threats</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAlertsDialogOpen(false)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+            <Button variant="outline" onClick={() => setAlertsDialogOpen(false)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
               Cancel
             </Button>
-            <Button onClick={handleUpdateSettings} className="bg-[#585b70] hover:bg-gray-600 text-[#cdd6f4] border border-gray-600">
+            <Button onClick={handleUpdateSettings} className="bg-secondary hover:bg-gray-600 text-foreground border border-gray-600">
               Save Changes
             </Button>
           </DialogFooter>
@@ -875,21 +911,21 @@ export function HoneypotsPage() {
 
       {/* Notification Settings Dialog */}
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
-        <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#cdd6f4] flex items-center">
+            <DialogTitle className="text-foreground flex items-center">
               <MdMonitorHeart className="w-5 h-5 mr-2 text-blue-400" />
               Notification Settings
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Manage how and when you receive notifications.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-[#cdd6f4]">Push Notifications</label>
-                <p className="text-xs text-gray-400">Receive browser push notifications</p>
+                <label className="text-sm font-medium text-foreground">Push Notifications</label>
+                <p className="text-xs text-muted-foreground">Receive browser push notifications</p>
               </div>
               <Switch 
                 checked={settings.pushNotifications}
@@ -898,33 +934,33 @@ export function HoneypotsPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Monitoring Interval (minutes)</label>
+              <label className="text-sm font-medium text-foreground">Monitoring Interval (minutes)</label>
               <Input 
                 type="number"
                 value={settings.monitoringInterval}
                 onChange={(e) => setSettings(prev => ({ ...prev, monitoringInterval: e.target.value }))}
-                className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]"
+                className="bg-accent border-border text-foreground"
                 min="1"
                 max="60"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Data Retention (days)</label>
+              <label className="text-sm font-medium text-foreground">Data Retention (days)</label>
               <Input 
                 type="number"
                 value={settings.retentionPeriod}
                 onChange={(e) => setSettings(prev => ({ ...prev, retentionPeriod: e.target.value }))}
-                className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]"
+                className="bg-accent border-border text-foreground"
                 min="1"
                 max="365"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNotificationDialogOpen(false)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+            <Button variant="outline" onClick={() => setNotificationDialogOpen(false)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
               Cancel
             </Button>
-            <Button onClick={handleUpdateSettings} className="bg-[#585b70] hover:bg-gray-600 text-[#cdd6f4] border border-gray-600">
+            <Button onClick={handleUpdateSettings} className="bg-secondary hover:bg-gray-600 text-foreground border border-gray-600">
               Save Changes
             </Button>
           </DialogFooter>
@@ -933,38 +969,38 @@ export function HoneypotsPage() {
 
       {/* Advanced Settings Dialog */}
       <Dialog open={advancedDialogOpen} onOpenChange={setAdvancedDialogOpen}>
-        <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#cdd6f4] flex items-center">
+            <DialogTitle className="text-foreground flex items-center">
               <HiCpuChip className="w-5 h-5 mr-2 text-purple-400" />
               Advanced Settings
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Configure advanced security and routing features.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Routing Method</label>
+              <label className="text-sm font-medium text-foreground">Routing Method</label>
               <Select defaultValue="classical">
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="classical" className="text-[#cdd6f4]">Classical - Standard routing</SelectItem>
-                  <SelectItem value="post_quantum" className="text-[#cdd6f4]">Post-Quantum - When threats detected</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="classical" className="text-foreground">Classical - Standard routing</SelectItem>
+                  <SelectItem value="post_quantum" className="text-foreground">Post-Quantum - When threats detected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Default Encryption</label>
+              <label className="text-sm font-medium text-foreground">Default Encryption</label>
               <Select defaultValue="ecdsa">
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="rsa" className="text-[#cdd6f4]">RSA-2048</SelectItem>
-                  <SelectItem value="ecdsa" className="text-[#cdd6f4]">ECDSA (Recommended)</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="rsa" className="text-foreground">RSA-2048</SelectItem>
+                  <SelectItem value="ecdsa" className="text-foreground">ECDSA (Recommended)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -975,10 +1011,10 @@ export function HoneypotsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAdvancedDialogOpen(false)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+            <Button variant="outline" onClick={() => setAdvancedDialogOpen(false)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
               Cancel
             </Button>
-            <Button onClick={handleUpdateSettings} className="bg-[#585b70] hover:bg-gray-600 text-[#cdd6f4] border border-gray-600">
+            <Button onClick={handleUpdateSettings} className="bg-secondary hover:bg-gray-600 text-foreground border border-gray-600">
               Apply Settings
             </Button>
           </DialogFooter>
@@ -990,47 +1026,47 @@ export function HoneypotsPage() {
         <React.Fragment key={asset.id}>
           {/* View Details Dialog */}
           <Dialog open={honeypotDialogOpen === `details-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
-            <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-lg">
+            <DialogContent className="bg-card border-border text-foreground max-w-lg">
               <DialogHeader>
-                <DialogTitle className="text-[#cdd6f4] flex items-center">
+                <DialogTitle className="text-foreground flex items-center">
                   <GiHoneypot className="w-5 h-5 mr-2 text-amber-400" />
                   {asset.name} Details
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-muted-foreground">
                   Detailed information about this honeypot asset.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-400">Asset Type</label>
-                    <p className="text-sm text-[#cdd6f4]">{asset.name} ({asset.symbol})</p>
+                    <label className="text-xs text-muted-foreground">Asset Type</label>
+                    <p className="text-sm text-foreground">{asset.name} ({asset.symbol})</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">Status</label>
+                    <label className="text-xs text-muted-foreground">Status</label>
                     <div className="mt-1">{getStatusBadge(asset.status)}</div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">Address</label>
-                    <p className="text-sm text-[#cdd6f4] font-mono">{asset.address}</p>
+                    <label className="text-xs text-muted-foreground">Address</label>
+                    <p className="text-sm text-foreground font-mono">{asset.address}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">Balance</label>
-                    <p className="text-sm text-[#cdd6f4]">{asset.balance} {asset.symbol}</p>
+                    <label className="text-xs text-muted-foreground">Balance</label>
+                    <p className="text-sm text-foreground">{asset.balance} {asset.symbol}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">Threat Level</label>
+                    <label className="text-xs text-muted-foreground">Threat Level</label>
                     <p className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel)}`}>
                       {asset.threatLevel.toUpperCase()}
                     </p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400">Interactions</label>
-                    <p className="text-sm text-[#cdd6f4]">{asset.interactions} events</p>
+                    <label className="text-xs text-muted-foreground">Interactions</label>
+                    <p className="text-sm text-foreground">{asset.interactions} events</p>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400">Protection Level</label>
+                  <label className="text-xs text-muted-foreground">Protection Level</label>
                   <Badge 
                     className={asset.protection === 'rsa' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 mt-1' : 'bg-green-500/10 text-green-400 border-green-500/20 mt-1'}
                   >
@@ -1039,12 +1075,12 @@ export function HoneypotsPage() {
                   </Badge>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400">Last Activity</label>
-                  <p className="text-sm text-[#cdd6f4]">{asset.lastActivity}</p>
+                  <label className="text-xs text-muted-foreground">Last Activity</label>
+                  <p className="text-sm text-foreground">{asset.lastActivity}</p>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
                   Close
                 </Button>
               </DialogFooter>
@@ -1053,19 +1089,19 @@ export function HoneypotsPage() {
 
           {/* Configure Dialog */}
           <Dialog open={honeypotDialogOpen === `configure-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
-            <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+            <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-[#cdd6f4] flex items-center">
+                <DialogTitle className="text-foreground flex items-center">
                   <Settings className="w-5 h-5 mr-2 text-blue-400" />
                   Configure {asset.name}
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-muted-foreground">
                   Adjust settings for this honeypot.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#cdd6f4]">Monitoring Sensitivity</label>
+                  <label className="text-sm font-medium text-foreground">Monitoring Sensitivity</label>
                   <Select 
                     value={configForm[asset.id]?.monitoring_sensitivity || asset.threatLevel}
                     onValueChange={(value) => setConfigForm(prev => ({
@@ -1076,18 +1112,18 @@ export function HoneypotsPage() {
                       }
                     }))}
                   >
-                    <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                    <SelectTrigger className="bg-accent border-border text-foreground">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                      <SelectItem value="low" className="text-[#cdd6f4]">Low Sensitivity</SelectItem>
-                      <SelectItem value="medium" className="text-[#cdd6f4]">Medium Sensitivity</SelectItem>
-                      <SelectItem value="high" className="text-[#cdd6f4]">High Sensitivity</SelectItem>
+                    <SelectContent className="bg-accent border-border">
+                      <SelectItem value="low" className="text-foreground">Low Sensitivity</SelectItem>
+                      <SelectItem value="medium" className="text-foreground">Medium Sensitivity</SelectItem>
+                      <SelectItem value="high" className="text-foreground">High Sensitivity</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#cdd6f4]">Protection Type</label>
+                  <label className="text-sm font-medium text-foreground">Protection Type</label>
                   <Select 
                     value={configForm[asset.id]?.protection_type || asset.protection}
                     onValueChange={(value) => setConfigForm(prev => ({
@@ -1098,19 +1134,19 @@ export function HoneypotsPage() {
                       }
                     }))}
                   >
-                    <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                    <SelectTrigger className="bg-accent border-border text-foreground">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                      <SelectItem value="rsa" className="text-[#cdd6f4]">RSA-2048</SelectItem>
-                      <SelectItem value="ecdsa" className="text-[#cdd6f4]">ECDSA</SelectItem>
+                    <SelectContent className="bg-accent border-border">
+                      <SelectItem value="rsa" className="text-foreground">RSA-2048</SelectItem>
+                      <SelectItem value="ecdsa" className="text-foreground">ECDSA</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-sm font-medium text-[#cdd6f4]">Auto-Response</label>
-                    <p className="text-xs text-gray-400">Automatically respond to threats</p>
+                    <label className="text-sm font-medium text-foreground">Auto-Response</label>
+                    <p className="text-xs text-muted-foreground">Automatically respond to threats</p>
                   </div>
                   <Switch 
                     checked={configForm[asset.id]?.auto_response ?? true}
@@ -1126,7 +1162,7 @@ export function HoneypotsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
                   Cancel
                 </Button>
                 <Button onClick={() => {
@@ -1137,7 +1173,7 @@ export function HoneypotsPage() {
                     routing_method: 'classical'
                   };
                   handleConfigureHoneypot(asset.id, config);
-                }} className="bg-[#585b70] hover:bg-gray-600 text-[#cdd6f4] border border-gray-600">
+                }} className="bg-secondary hover:bg-gray-600 text-foreground border border-gray-600">
                   Save Changes
                 </Button>
               </DialogFooter>
@@ -1146,13 +1182,13 @@ export function HoneypotsPage() {
 
           {/* Disable Dialog */}
           <Dialog open={honeypotDialogOpen === `disable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
-            <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+            <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-[#cdd6f4] flex items-center">
+                <DialogTitle className="text-foreground flex items-center">
                   <XCircle className="w-5 h-5 mr-2 text-red-400" />
                   Disable {asset.name}
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-muted-foreground">
                   Are you sure you want to disable this honeypot? This action can be reversed later.
                 </DialogDescription>
               </DialogHeader>
@@ -1162,7 +1198,7 @@ export function HoneypotsPage() {
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
                   Cancel
                 </Button>
                 <Button onClick={() => handleDisableHoneypot(asset.id)} className="bg-red-800 hover:bg-red-700 text-red-100 border border-red-700">
@@ -1174,13 +1210,13 @@ export function HoneypotsPage() {
 
           {/* Enable Dialog */}
           <Dialog open={honeypotDialogOpen === `enable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
-            <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+            <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-[#cdd6f4] flex items-center">
+                <DialogTitle className="text-foreground flex items-center">
                   <CheckCircle className="w-5 h-5 mr-2 text-green-400" />
                   Enable {asset.name}
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-muted-foreground">
                   Are you sure you want to enable this honeypot? This will resume all monitoring and threat detection.
                 </DialogDescription>
               </DialogHeader>
@@ -1190,7 +1226,7 @@ export function HoneypotsPage() {
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
                   Cancel
                 </Button>
                 <Button onClick={() => handleEnableHoneypot(asset.id)} className="bg-green-800 hover:bg-green-700 text-green-100 border border-green-700">
@@ -1202,13 +1238,13 @@ export function HoneypotsPage() {
 
           {/* Delete Dialog */}
           <Dialog open={honeypotDialogOpen === `delete-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
-            <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+            <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-[#cdd6f4] flex items-center">
+                <DialogTitle className="text-foreground flex items-center">
                   <Trash2 className="w-5 h-5 mr-2 text-red-400" />
                   Delete {asset.name}
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-muted-foreground">
                   Are you sure you want to permanently delete this honeypot? This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
@@ -1218,7 +1254,7 @@ export function HoneypotsPage() {
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500">
+                <Button variant="outline" onClick={() => setHoneypotDialogOpen(null)} className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500">
                   Cancel
                 </Button>
                 <Button onClick={() => handleDeleteHoneypot(asset.id)} className="bg-red-900 hover:bg-red-800 text-red-100 border border-red-800">
@@ -1232,91 +1268,106 @@ export function HoneypotsPage() {
 
       {/* Deploy New Honeypot Dialog */}
       <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
-        <DialogContent className="bg-[#313244] border-[#6c7086] text-[#cdd6f4] max-w-md">
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#cdd6f4] flex items-center">
+            <DialogTitle className="text-foreground flex items-center">
               <FaRobot className="w-5 h-5 mr-2 text-blue-400" />
               Deploy New Honeypot
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Configure and deploy a new honeypot to strengthen your security posture.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Honeypot Name *</label>
+              <label className="text-sm font-medium text-foreground">Honeypot Name *</label>
               <Input 
                 value={deployForm.name}
                 onChange={(e) => setDeployForm(prev => ({...prev, name: e.target.value}))}
                 placeholder="e.g., Quantum Honeypot 4"
-                className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4] placeholder:text-gray-500"
+                className="bg-accent border-border text-foreground placeholder:text-gray-500"
               />
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Blockchain Network</label>
+              <label className="text-sm font-medium text-foreground">Blockchain Network</label>
               <Select 
                 value={deployForm.blockchain}
                 onValueChange={(value) => setDeployForm(prev => ({...prev, blockchain: value}))}
               >
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="ethereum" className="text-[#cdd6f4]">Ethereum</SelectItem>
-                  <SelectItem value="bitcoin" className="text-[#cdd6f4]">Bitcoin</SelectItem>
-                  <SelectItem value="quantum" className="text-[#cdd6f4]">Quantum Testnet</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="ethereum" className="text-foreground">
+                    <div className="flex items-center">
+                      <SiEthereum className="w-4 h-4 mr-2 text-blue-400" />
+                      Ethereum
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="bitcoin" disabled className="text-muted-foreground opacity-50">
+                    <div className="flex items-center">
+                      <SiBitcoin className="w-4 h-4 mr-2 text-orange-400" />
+                      Bitcoin (Coming Soon)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="quantum" disabled className="text-muted-foreground opacity-50">
+                    <div className="flex items-center">
+                      <HiCpuChip className="w-4 h-4 mr-2 text-purple-400" />
+                      Quantum Testnet (Coming Soon)
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Protection Type</label>
+              <label className="text-sm font-medium text-foreground">Protection Type</label>
               <Select 
                 value={deployForm.protection_type}
                 onValueChange={(value) => setDeployForm(prev => ({...prev, protection_type: value}))}
               >
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="rsa" className="text-[#cdd6f4]">RSA-2048</SelectItem>
-                  <SelectItem value="ecdsa" className="text-[#cdd6f4]">ECDSA</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="rsa" className="text-foreground">RSA-2048</SelectItem>
+                  <SelectItem value="ecdsa" className="text-foreground">ECDSA</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Monitoring Sensitivity</label>
+              <label className="text-sm font-medium text-foreground">Monitoring Sensitivity</label>
               <Select 
                 value={deployForm.monitoring_sensitivity}
                 onValueChange={(value) => setDeployForm(prev => ({...prev, monitoring_sensitivity: value}))}
               >
-                <SelectTrigger className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4]">
+                <SelectTrigger className="bg-accent border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#45475a] border-[#6c7086]">
-                  <SelectItem value="low" className="text-[#cdd6f4]">Low Sensitivity</SelectItem>
-                  <SelectItem value="medium" className="text-[#cdd6f4]">Medium Sensitivity</SelectItem>
-                  <SelectItem value="high" className="text-[#cdd6f4]">High Sensitivity</SelectItem>
+                <SelectContent className="bg-accent border-border">
+                  <SelectItem value="low" className="text-foreground">Low Sensitivity</SelectItem>
+                  <SelectItem value="medium" className="text-foreground">Medium Sensitivity</SelectItem>
+                  <SelectItem value="high" className="text-foreground">High Sensitivity</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#cdd6f4]">Description</label>
+              <label className="text-sm font-medium text-foreground">Description</label>
               <Input 
                 value={deployForm.description}
                 onChange={(e) => setDeployForm(prev => ({...prev, description: e.target.value}))}
                 placeholder="Optional description for this honeypot"
-                className="bg-[#45475a] border-[#6c7086] text-[#cdd6f4] placeholder:text-gray-500"
+                className="bg-accent border-border text-foreground placeholder:text-gray-500"
               />
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium text-[#cdd6f4]">Auto-Response</label>
-                <p className="text-xs text-gray-400">Automatically respond to detected threats</p>
+                <label className="text-sm font-medium text-foreground">Auto-Response</label>
+                <p className="text-xs text-muted-foreground">Automatically respond to detected threats</p>
               </div>
               <Switch 
                 checked={deployForm.auto_response}
@@ -1330,14 +1381,14 @@ export function HoneypotsPage() {
             <Button 
               variant="outline" 
               onClick={() => setDeployDialogOpen(false)} 
-              className="border-gray-600 bg-[#45475a] text-gray-300 hover:bg-[#585b70] hover:text-[#cdd6f4] hover:border-gray-500"
+              className="border-gray-600 bg-accent text-gray-300 hover:bg-accent hover:text-foreground hover:border-gray-500"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleDeployHoneypot}
               disabled={!deployForm.name.trim()}
-              className="bg-blue-700 hover:bg-blue-600 text-[#cdd6f4] border border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-blue-700 hover:bg-blue-600 text-foreground border border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Deploy Honeypot
             </Button>
