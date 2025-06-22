@@ -16,7 +16,6 @@ dependencies = [
 [tool.ruff]
 line-length = 80
 
-
 [tool.ruff.lint]
 select = [
   # pycodestyle

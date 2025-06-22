@@ -29,6 +29,10 @@ run-all:
 	@echo "Starting frontend..."
 	cd frontend && npm start
 
+demo-deploy:
+	@echo "Deploying demo infrastructure..."
+	cd demo/terraform && tofu init -upgrade && tofu validate && tofu apply -auto-approve
+
 test:
 	$(UV) run pytest tests/ -v --cov=core --cov=services --cov=utils
 
