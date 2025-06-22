@@ -34,6 +34,8 @@ export interface Honeypot {
   change?: number;
   threatLevel?: 'low' | 'medium' | 'high';
   protection?: 'rsa' | 'ecdsa';
+  lastActivity?: string;
+  interactions?: number;
 }
 
 export interface HoneypotConfig {
@@ -169,7 +171,8 @@ class ApiService {
                      hp.status === 'triggered' ? 'high' : 
                      hp.monitoring_sensitivity || 'low',
         protection: hp.protection_type || 'ecdsa',
-        lastActivity
+        lastActivity,
+        interactions: hp.interaction_count || 0
       };
     });
     

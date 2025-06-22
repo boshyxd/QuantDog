@@ -70,7 +70,6 @@ import { apiService, type Honeypot } from "@/services/api"
 import { webSocketService, type HoneypotCompromisedData } from "@/services/websocket"
 import { toast } from "sonner"
 
-// Honeypots data will be fetched from API
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -109,24 +108,20 @@ export function HoneypotsPage() {
   const ref = React.useRef(null)
   const isInView = useInView(ref, { once: true })
   
-  // Dialog state management
   const [alertsDialogOpen, setAlertsDialogOpen] = React.useState(false)
   const [notificationDialogOpen, setNotificationDialogOpen] = React.useState(false)
   const [advancedDialogOpen, setAdvancedDialogOpen] = React.useState(false)
   const [honeypotDialogOpen, setHoneypotDialogOpen] = React.useState<string | null>(null)
   const [deployDialogOpen, setDeployDialogOpen] = React.useState(false)
   
-  // Data state
   const [honeypots, setHoneypots] = React.useState<Honeypot[]>([])
   
-  // Form state for honeypot configuration
   const [configForm, setConfigForm] = React.useState<{[key: string]: {
     monitoring_sensitivity: string
     protection_type: string
     auto_response: boolean
   }}>({})
   
-  // Initialize form state when honeypots change
   React.useEffect(() => {
     const initialConfig: {[key: string]: {
       monitoring_sensitivity: string
@@ -145,7 +140,6 @@ export function HoneypotsPage() {
     setConfigForm(initialConfig)
   }, [honeypots])
   
-  // Deploy form state
   const [deployForm, setDeployForm] = React.useState({
     name: '',
     blockchain: 'ethereum',
@@ -158,7 +152,6 @@ export function HoneypotsPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   
-  // Settings state
   const [settings, setSettings] = React.useState({
     emailAlerts: true,
     pushNotifications: false,
@@ -168,7 +161,6 @@ export function HoneypotsPage() {
     retentionPeriod: "30"
   })
   
-  // Fetch honeypots data
   const fetchHoneypots = React.useCallback(async () => {
     try {
       setLoading(true)
@@ -183,38 +175,31 @@ export function HoneypotsPage() {
     }
   }, [])
   
-  // Initial load and WebSocket setup
   React.useEffect(() => {
     fetchHoneypots()
     
-    // Connect to WebSocket for real-time updates
     webSocketService.connect()
     
-    // Listen for honeypot compromised events
     const unsubscribeCompromised = webSocketService.on('honeypot_compromised', (data: HoneypotCompromisedData) => {
       console.log('🚨 Honeypot compromised event received:', data)
       
-      // Show toast notification with critical styling
       toast.error(`CRITICAL: ${data.honeypot_name} COMPROMISED!`, {
         description: `${data.amount_drained} ${data.blockchain.toUpperCase()} drained from ${data.wallet_address}. Auto-response: ${data.auto_responded ? 'Active' : 'Inactive'}`,
-        duration: 10000, // Show for 10 seconds
+        duration: 10000,
         action: {
           label: "View Details",
           onClick: () => console.log("Viewing honeypot details")
         }
       })
       
-      // Refresh honeypots data
       fetchHoneypots()
     })
     
-    // Listen for general honeypot updates
     const unsubscribeUpdates = webSocketService.on('honeypots_updated', () => {
       console.log('🔄 Honeypots updated event received, refreshing data...')
       fetchHoneypots()
     })
     
-    // Cleanup on unmount
     return () => {
       unsubscribeCompromised()
       unsubscribeUpdates()
@@ -222,11 +207,9 @@ export function HoneypotsPage() {
     }
   }, [])
   
-  // Handle honeypot configuration
   const handleConfigureHoneypot = async (honeypotId: string, config: any) => {
     try {
       await apiService.updateHoneypotConfig(honeypotId, config)
-      // Refresh data
       await fetchHoneypots()
       setHoneypotDialogOpen(null)
     } catch (err) {
@@ -234,11 +217,9 @@ export function HoneypotsPage() {
     }
   }
   
-  // Handle honeypot disable
   const handleDisableHoneypot = async (honeypotId: string) => {
     try {
       await apiService.disableHoneypot(honeypotId)
-      // Refresh data
       await fetchHoneypots()
       setHoneypotDialogOpen(null)
     } catch (err) {
@@ -246,11 +227,9 @@ export function HoneypotsPage() {
     }
   }
 
-  // Handle honeypot enable
   const handleEnableHoneypot = async (honeypotId: string) => {
     try {
       await apiService.enableHoneypot(honeypotId)
-      // Refresh data
       await fetchHoneypots()
       setHoneypotDialogOpen(null)
     } catch (err) {
@@ -258,11 +237,9 @@ export function HoneypotsPage() {
     }
   }
 
-  // Handle honeypot delete
   const handleDeleteHoneypot = async (honeypotId: string) => {
     try {
       await apiService.deleteHoneypot(honeypotId)
-      // Refresh data
       await fetchHoneypots()
       setHoneypotDialogOpen(null)
     } catch (err) {
@@ -270,28 +247,22 @@ export function HoneypotsPage() {
     }
   }
 
-  // Handle star toggle
   const handleStarToggle = async (honeypotId: string) => {
     try {
       const result = await apiService.toggleHoneypotStar(honeypotId)
-      // Update local state immediately for better UX
       setHoneypots(prev => prev.map(hp => 
         hp.id === honeypotId ? { ...hp, starred: result.starred } : hp
       ))
     } catch (err) {
       console.error('Failed to toggle star:', err)
-      // Refresh to get correct state
       await fetchHoneypots()
     }
   }
   
-  // Handle deploy new honeypot
   const handleDeployHoneypot = async () => {
     try {
       await apiService.deployHoneypot(deployForm)
-      // Refresh data
       await fetchHoneypots()
-      // Reset form
       setDeployForm({
         name: '',
         blockchain: 'ethereum',
@@ -306,18 +277,16 @@ export function HoneypotsPage() {
     }
   }
   
-  // Handle settings update
   const handleUpdateSettings = async () => {
     try {
       await apiService.updateSystemSettings({
         email_alerts: settings.emailAlerts,
         push_notifications: settings.pushNotifications,
-        threat_threshold: settings.threatThreshold,
+        threat_threshold: settings.threatThreshold as "medium" | "low" | "high" | undefined,
         auto_response: settings.autoResponse,
         monitoring_interval: parseInt(settings.monitoringInterval),
         retention_period: parseInt(settings.retentionPeriod)
       })
-      // Close dialogs
       setAlertsDialogOpen(false)
       setNotificationDialogOpen(false)
       setAdvancedDialogOpen(false)
@@ -336,7 +305,6 @@ export function HoneypotsPage() {
         transition={{ duration: 0.5 }}
       >
         <div className="p-6">
-          {/* Header with Actions */}
           <motion.div 
             className="flex items-center justify-between mb-6"
             initial={{ opacity: 0, y: -20 }}
@@ -425,7 +393,6 @@ export function HoneypotsPage() {
             </motion.div>
           </motion.div>
 
-          {/* Alert */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -439,7 +406,6 @@ export function HoneypotsPage() {
             </Alert>
           </motion.div>
 
-          {/* Portfolio Value */}
           <motion.div 
             className="mb-8"
             initial={{ opacity: 0, y: 20 }}
@@ -464,7 +430,6 @@ export function HoneypotsPage() {
             </div>
           </motion.div>
 
-          {/* Quick Stats */}
           <motion.div 
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
             initial={{ opacity: 0 }}
@@ -575,7 +540,6 @@ export function HoneypotsPage() {
             </motion.div>
           </motion.div>
 
-          {/* Main Content Tabs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -595,7 +559,6 @@ export function HoneypotsPage() {
             </TabsList>
 
             <TabsContent value="assets">
-              {/* Assets Table */}
               <Card className="bg-card border-border">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -694,7 +657,7 @@ export function HoneypotsPage() {
                                     <h4 className="text-sm font-semibold text-foreground">{asset.name} Honeypot</h4>
                                     <p className="text-xs text-muted-foreground">Address: {asset.address}</p>
                                     <p className="text-xs text-muted-foreground">Balance: {asset.balance} {asset.symbol}</p>
-                                    <p className="text-xs text-muted-foreground">Last Activity: {asset.lastActivity}</p>
+                                    <p className="text-xs text-muted-foreground">Last Activity: {asset.lastActivity || 'Never'}</p>
                                   </div>
                                 </HoverCardContent>
                               </HoverCard>
@@ -705,20 +668,20 @@ export function HoneypotsPage() {
                             <td className="px-6 py-4">
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel)}`}>
-                                    {asset.threatLevel.toUpperCase()}
+                                  <span className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel || 'low')}`}>
+                                    {(asset.threatLevel || 'low').toUpperCase()}
                                   </span>
                                 </div>
                                 <Progress 
-                                  value={getThreatProgress(asset.threatLevel)} 
+                                  value={getThreatProgress(asset.threatLevel || 'low')} 
                                   className="h-1 w-16"
                                 />
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <div className={`flex items-center text-sm ${asset.change > 0 ? 'text-green-500' : asset.change < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                                {asset.change > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : asset.change < 0 ? <TrendingDown className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
-                                <span className="text-xs text-muted-foreground">{asset.lastActivity}</span>
+                              <div className={`flex items-center text-sm ${(asset.change || 0) > 0 ? 'text-green-500' : (asset.change || 0) < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                                {(asset.change || 0) > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : (asset.change || 0) < 0 ? <TrendingDown className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
+                                <span className="text-xs text-muted-foreground">{asset.lastActivity || 'Never'}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -849,7 +812,6 @@ export function HoneypotsPage() {
         </div>
       </motion.div>
 
-      {/* Configure Alerts Dialog */}
       <Dialog open={alertsDialogOpen} onOpenChange={setAlertsDialogOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
@@ -909,7 +871,6 @@ export function HoneypotsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Notification Settings Dialog */}
       <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
@@ -967,7 +928,6 @@ export function HoneypotsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Advanced Settings Dialog */}
       <Dialog open={advancedDialogOpen} onOpenChange={setAdvancedDialogOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
@@ -1021,10 +981,8 @@ export function HoneypotsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Honeypot Action Dialogs */}
       {honeypots.map((asset) => (
         <React.Fragment key={asset.id}>
-          {/* View Details Dialog */}
           <Dialog open={honeypotDialogOpen === `details-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
             <DialogContent className="bg-card border-border text-foreground max-w-lg">
               <DialogHeader>
@@ -1056,13 +1014,13 @@ export function HoneypotsPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Threat Level</label>
-                    <p className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel)}`}>
-                      {asset.threatLevel.toUpperCase()}
+                    <p className={`text-sm font-medium ${getThreatLevelColor(asset.threatLevel || 'low')}`}>
+                      {(asset.threatLevel || 'low').toUpperCase()}
                     </p>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Interactions</label>
-                    <p className="text-sm text-foreground">{asset.interactions} events</p>
+                    <p className="text-sm text-foreground">{asset.interactions || 0} events</p>
                   </div>
                 </div>
                 <div>
@@ -1076,7 +1034,7 @@ export function HoneypotsPage() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Last Activity</label>
-                  <p className="text-sm text-foreground">{asset.lastActivity}</p>
+                  <p className="text-sm text-foreground">{asset.lastActivity || 'Never'}</p>
                 </div>
               </div>
               <DialogFooter>
@@ -1087,7 +1045,6 @@ export function HoneypotsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Configure Dialog */}
           <Dialog open={honeypotDialogOpen === `configure-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
             <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
@@ -1180,7 +1137,6 @@ export function HoneypotsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Disable Dialog */}
           <Dialog open={honeypotDialogOpen === `disable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
             <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
@@ -1208,7 +1164,6 @@ export function HoneypotsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Enable Dialog */}
           <Dialog open={honeypotDialogOpen === `enable-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
             <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
@@ -1236,7 +1191,6 @@ export function HoneypotsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Delete Dialog */}
           <Dialog open={honeypotDialogOpen === `delete-${asset.id}`} onOpenChange={(open) => !open && setHoneypotDialogOpen(null)}>
             <DialogContent className="bg-card border-border text-foreground max-w-md">
               <DialogHeader>
@@ -1266,7 +1220,6 @@ export function HoneypotsPage() {
         </React.Fragment>
       ))}
 
-      {/* Deploy New Honeypot Dialog */}
       <Dialog open={deployDialogOpen} onOpenChange={setDeployDialogOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
