@@ -37,7 +37,7 @@ const menuItems = [
 
 export function Sidebar({ className, ...props }: SidebarProps) {
   return (
-    <div className={cn("w-16 bg-gray-950/80 border-r border-gray-800", className)} {...props}>
+    <div className={cn("w-16 bg-gray-950/60 border-r border-gray-800", className)} {...props}>
       <div className="flex flex-col h-full">
         <div className="p-4">
           {/* Logo removed for now */}

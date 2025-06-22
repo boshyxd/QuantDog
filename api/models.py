@@ -56,6 +56,11 @@ class HoneypotData(BaseModel):
     monitoring_sensitivity: Optional[str] = None
     blockchain: Optional[str] = None
     description: Optional[str] = None
+    starred: bool = False
+    activated_at: Optional[datetime] = None
+    wallet_address: Optional[str] = None
+    current_balance: Optional[float] = None
+    initial_balance: Optional[float] = None
 
 
 class SystemMetrics(BaseModel):

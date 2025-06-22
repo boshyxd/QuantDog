@@ -17,7 +17,7 @@ const navItems = [
 
 export function Navbar({ className, ...props }: NavbarProps) {
   return (
-    <div className={cn("h-16 bg-gray-950/80 border-b border-gray-800", className)} {...props}>
+    <div className={cn("h-16 bg-gray-950/60 border-b border-gray-800", className)} {...props}>
       <div className="flex items-center justify-between h-full px-4">
         <div className="flex items-center gap-6">
           <h1 className="text-xl font-semibold text-white">Assets</h1>

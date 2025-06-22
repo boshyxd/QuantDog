@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 
-from api.routes import router
+from api.routes import router, start_honeypot_monitoring, stop_honeypot_monitoring
 from api.websocket import ConnectionManager
 from core.monitoring import ThreatMonitor
 
@@ -15,15 +15,24 @@ threat_monitor = ThreatMonitor()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    task = asyncio.create_task(threat_monitor.start_monitoring(manager))
+    print("🚀 Starting QuantDog API...")
+    threat_task = asyncio.create_task(threat_monitor.start_monitoring(manager))
+    honeypot_task = await start_honeypot_monitoring()
+    print("✅ All systems online!")
+    
     yield
+    
     # Shutdown
+    print("🛑 Shutting down QuantDog API...")
     threat_monitor.stop_monitoring()
-    task.cancel()
+    await stop_honeypot_monitoring()
+    
+    threat_task.cancel()
     try:
-        await task
+        await threat_task
     except asyncio.CancelledError:
         pass
+    print("✅ Shutdown complete!")
 
 
 app = FastAPI(

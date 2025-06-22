@@ -17,13 +17,21 @@ export interface Honeypot {
   last_interaction: string | null;
   interaction_count: number;
   threat_indicators: string[];
+  starred: boolean;
+  activated_at: string | null;
+  wallet_address: string | null;
+  current_balance: number | null;
+  initial_balance: number | null;
+  blockchain?: string;
+  protection_type?: string;
+  monitoring_sensitivity?: string;
+  description?: string;
   // Additional frontend fields
   symbol?: string;
   address?: string;
   balance?: string;
   value?: string;
   change?: number;
-  starred?: boolean;
   threatLevel?: 'low' | 'medium' | 'high';
   protection?: 'rsa' | 'ecdsa';
 }
@@ -75,42 +83,68 @@ class ApiService {
     
     // Transform backend data to match frontend expectations
     const transformed = honeypots.map((hp: any, index: number) => {
-      // Generate symbol based on blockchain type or default sequence
+      // Generate symbol based on blockchain type
       let symbol = 'QTC'; // default
       if (hp.blockchain === 'ethereum') symbol = 'ETH';
       else if (hp.blockchain === 'bitcoin') symbol = 'BTC';
       else if (hp.blockchain === 'quantum') symbol = 'QTC';
-      else {
-        // For other cases, cycle through available symbols
-        const symbols = ['ETH', 'BTC', 'QTC', 'SOL', 'ADA', 'DOT'];
-        symbol = symbols[index % symbols.length];
+
+      // Format wallet address for display (shorten it)
+      let address = hp.wallet_address || '';
+      if (address.length > 10) {
+        address = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
       }
 
-      // Generate mock address based on blockchain type
-      let address = 'q1x4rt...8h9p'; // default quantum
-      if (hp.blockchain === 'ethereum') {
-        address = `0x${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
-      } else if (hp.blockchain === 'bitcoin') {
-        address = `bc1q${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
-      } else {
-        address = `q${Math.random().toString(16).substr(2, 6)}...${Math.random().toString(16).substr(2, 4)}`;
+      // Calculate time since activation
+      let lastActivity = 'Never';
+      if (hp.last_interaction) {
+        lastActivity = new Date(hp.last_interaction).toLocaleString();
+      } else if (hp.activated_at) {
+        const activatedDate = new Date(hp.activated_at);
+        const now = new Date();
+        const diffMs = now.getTime() - activatedDate.getTime();
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (diffHours > 0) {
+          lastActivity = `Active for ${diffHours}h ${diffMins}m`;
+        } else {
+          lastActivity = `Active for ${diffMins}m`;
+        }
+      }
+
+      // Format balance and value
+      const balance = hp.current_balance !== null ? hp.current_balance.toFixed(4) : '0.0000';
+      let value = '$0.00';
+      if (hp.current_balance !== null) {
+        // Mock price calculation based on blockchain
+        const prices: Record<string, number> = {
+          'ethereum': 2000,
+          'bitcoin': 45000,
+          'quantum': 10
+        };
+        const price = prices[hp.blockchain || 'quantum'] || 10;
+        value = `$${(hp.current_balance * price).toFixed(2)}`;
+      }
+
+      // Calculate change based on balance difference
+      let change = 0;
+      if (hp.initial_balance && hp.current_balance !== null) {
+        change = ((hp.current_balance - hp.initial_balance) / hp.initial_balance) * 100;
       }
 
       return {
         ...hp,
         symbol,
         address,
-        balance: '0.0000',
-        value: '$0.00',
-        change: (Math.random() - 0.5) * 30, // Random change between -15 and +15
-        starred: Math.random() > 0.7, // 30% chance of being starred
+        balance,
+        value,
+        change,
         threatLevel: hp.threat_indicators?.length > 0 ? 'high' : 
-                     hp.status === 'triggered' ? 'medium' : 
+                     hp.status === 'triggered' ? 'high' : 
                      hp.monitoring_sensitivity || 'low',
         protection: hp.protection_type || 'ecdsa',
-        lastActivity: hp.last_interaction ? 
-          new Date(hp.last_interaction).toLocaleString() : 
-          `${Math.floor(Math.random() * 24) + 1} hours ago`
+        lastActivity
       };
     });
     
@@ -154,6 +188,13 @@ class ApiService {
     await this.fetchWithHandling(`/honeypots/${honeypotId}`, {
       method: 'DELETE',
     });
+  }
+
+  async toggleHoneypotStar(honeypotId: string): Promise<{ starred: boolean }> {
+    const result = await this.fetchWithHandling(`/honeypots/${honeypotId}/star`, {
+      method: 'POST',
+    });
+    return result;
   }
 
   async deployHoneypot(config: {

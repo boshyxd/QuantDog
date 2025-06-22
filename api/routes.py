@@ -1,5 +1,8 @@
 import asyncio
+import logging
 from datetime import datetime
+import random
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -26,10 +29,17 @@ from utils.config import get_settings
 router = APIRouter()
 settings = get_settings()
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Initialize services
 threat_detector = ThreatDetector()
 crypto_router = CryptoRouter()
 blockchain_service = BlockchainService()
+
+# Balance check task
+balance_check_task: Optional[asyncio.Task] = None
 
 # In-memory storage for honeypot configurations
 honeypot_configs = {
@@ -43,7 +53,14 @@ honeypot_configs = {
         "description": "Primary Ethereum honeypot",
         "interaction_count": 0,
         "last_interaction": None,
-        "threat_indicators": []
+        "threat_indicators": [],
+        "starred": False,
+        "created_at": datetime.utcnow(),
+        "activated_at": datetime.utcnow(),
+        "wallet_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f8b7d2",
+        "initial_balance": 1.0,
+        "current_balance": 1.0,
+        "status": "active"
     },
     "honeypot_1": {
         "name": "Quantum Honeypot 2",
@@ -55,7 +72,14 @@ honeypot_configs = {
         "description": "Bitcoin monitoring honeypot",
         "interaction_count": 0,
         "last_interaction": None,
-        "threat_indicators": []
+        "threat_indicators": [],
+        "starred": False,
+        "created_at": datetime.utcnow(),
+        "activated_at": datetime.utcnow(),
+        "wallet_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+        "initial_balance": 0.01,
+        "current_balance": 0.01,
+        "status": "active"
     },
     "honeypot_2": {
         "name": "Quantum Honeypot 3",
@@ -67,7 +91,14 @@ honeypot_configs = {
         "description": "High-sensitivity quantum testnet honeypot",
         "interaction_count": 0,
         "last_interaction": None,
-        "threat_indicators": []
+        "threat_indicators": [],
+        "starred": False,
+        "created_at": datetime.utcnow(),
+        "activated_at": datetime.utcnow(),
+        "wallet_address": "0x1234567890123456789012345678901234567890",
+        "initial_balance": 100.0,
+        "current_balance": 100.0,
+        "status": "active"
     }
 }
 
@@ -76,6 +107,134 @@ disabled_honeypots = set()
 
 # In-memory storage for honeypot interactions
 honeypot_interactions = []
+
+
+async def check_honeypot_balances():
+    """Periodically check honeypot wallet balances and detect if funds were drained."""
+    logger.info("🚀 Starting honeypot balance monitoring task...")
+    check_count = 0
+    
+    while True:
+        try:
+            check_count += 1
+            active_honeypots = 0
+            triggered_honeypots = 0
+            total_balance = 0
+            
+            for honeypot_id, config in honeypot_configs.items():
+                if config.get("wallet_address"):
+                    current_balance = config.get("current_balance", 0)
+                    total_balance += current_balance
+                    
+                    if config.get("status") == "active":
+                        active_honeypots += 1
+                    elif config.get("status") == "triggered":
+                        triggered_honeypots += 1
+            
+            # Every 5 minutes (10 checks), log a status report
+            if check_count % 10 == 0:
+                total_interactions = sum(config.get("interaction_count", 0) for config in honeypot_configs.values())
+                print(f"\n📊 HONEYPOT SYSTEM STATUS REPORT (Check #{check_count}):")
+                print(f"   🟢 Active honeypots: {active_honeypots}")
+                print(f"   🔴 Triggered honeypots: {triggered_honeypots}")
+                print(f"   💰 Total balance: {total_balance:.4f}")
+                print(f"   📈 Total interactions: {total_interactions}")
+                print(f"   ⏰ Next check in 30 seconds\n")
+                
+            # Now check for balance drains
+            for honeypot_id, config in honeypot_configs.items():
+                if config.get("status") == "active" and config.get("wallet_address"):
+                    current_balance = config.get("current_balance", 0)
+                    wallet_address = config.get("wallet_address", "unknown")
+                    
+                    # Log balance check (every 10th check to avoid spam)
+                    if random.random() < 0.1:
+                        logger.info(f"💰 Checking balance for {honeypot_id} ({wallet_address[:10]}...): {current_balance}")
+                    
+                    # 5% chance of being drained per check (adjust this for demo purposes)
+                    if random.random() < 0.05 and current_balance > 0:
+                        # Honeypot was drained!
+                        previous_balance = current_balance
+                        config["current_balance"] = 0
+                        config["status"] = "triggered"
+                        config["last_interaction"] = datetime.utcnow()
+                        
+                        # Record the drain as an interaction
+                        interaction_id = f"int_{len(honeypot_interactions)}_{honeypot_id}"
+                        drain_interaction = {
+                            "id": interaction_id,
+                            "honeypot_id": honeypot_id,
+                            "interaction_type": "funds_drained",
+                            "source_ip": f"192.168.{random.randint(1,255)}.{random.randint(1,255)}",
+                            "source_address": f"0x{''.join(random.choices('0123456789abcdef', k=40))}",
+                            "amount": previous_balance,
+                            "details": {
+                                "message": "Honeypot funds were drained by malicious actor",
+                                "previous_balance": previous_balance,
+                                "new_balance": 0,
+                                "blockchain": config.get("blockchain", "unknown"),
+                                "wallet_address": wallet_address
+                            },
+                            "timestamp": datetime.utcnow(),
+                            "threat_level": "critical",
+                            "auto_responded": config.get("auto_response", False)
+                        }
+                        honeypot_interactions.append(drain_interaction)
+                        config["interaction_count"] += 1
+                        
+                        # Add to threat indicators if not already there
+                        if "funds_drained" not in config.get("threat_indicators", []):
+                            config["threat_indicators"].append("funds_drained")
+                        
+                        # Multiple alert methods to ensure visibility
+                        alert_msg = f"🚨 CRITICAL ALERT: Honeypot {honeypot_id} ({config.get('name', 'Unknown')}) COMPROMISED!"
+                        balance_msg = f"💸 Funds drained: {previous_balance} {config.get('blockchain', 'tokens')} from {wallet_address}"
+                        
+                        logger.error(alert_msg)
+                        logger.error(balance_msg)
+                        print(f"\n{'='*80}")
+                        print(alert_msg)
+                        print(balance_msg)
+                        print(f"Threat level: CRITICAL | Auto-response: {config.get('auto_response', False)}")
+                        print(f"{'='*80}\n")
+            
+            # Check every 30 seconds
+            await asyncio.sleep(30)
+            
+        except Exception as e:
+            error_msg = f"❌ Error in balance check task: {e}"
+            logger.error(error_msg)
+            print(error_msg)
+            await asyncio.sleep(60)  # Wait longer on error
+
+
+# Functions to start and stop the balance checking task
+async def start_honeypot_monitoring():
+    """Start the honeypot balance monitoring task."""
+    global balance_check_task
+    balance_check_task = asyncio.create_task(check_honeypot_balances())
+    startup_msg = "🌟 QuantDog Honeypot System STARTED - Background monitoring active"
+    logger.info(startup_msg)
+    print(f"\n{'='*80}")
+    print(startup_msg)
+    print(f"Active honeypots: {len(honeypot_configs)}")
+    print(f"Check interval: 30 seconds")
+    print(f"{'='*80}\n")
+    return balance_check_task
+
+
+async def stop_honeypot_monitoring():
+    """Stop the honeypot balance monitoring task."""
+    global balance_check_task
+    if balance_check_task:
+        balance_check_task.cancel()
+        try:
+            await balance_check_task
+        except asyncio.CancelledError:
+            pass
+    shutdown_msg = "🛑 QuantDog Honeypot System STOPPED - Background monitoring disabled"
+    logger.info(shutdown_msg)
+    print(shutdown_msg)
 
 
 @router.get("/status", response_model=ThreatStatus)
@@ -173,13 +332,12 @@ async def get_honeypots():
         except (IndexError, ValueError):
             index = len(honeypots)
 
-        # Determine status based on whether honeypot is disabled
+        # Determine status based on whether honeypot is disabled or triggered
         if honeypot_id in disabled_honeypots:
             status = "disabled"
-        elif index < 2:
-            status = "active"
         else:
-            status = "triggered"
+            # Use the actual status from config, default to active
+            status = config.get("status", "active")
 
         honeypots.append(HoneypotData(
             id=honeypot_id,
@@ -191,7 +349,12 @@ async def get_honeypots():
             protection_type=config.get("protection_type", "ecdsa"),
             monitoring_sensitivity=config.get("monitoring_sensitivity", "medium"),
             blockchain=config.get("blockchain", "ethereum"),
-            description=config.get("description", "")
+            description=config.get("description", ""),
+            starred=config.get("starred", False),
+            activated_at=config.get("activated_at"),
+            wallet_address=config.get("wallet_address"),
+            current_balance=config.get("current_balance"),
+            initial_balance=config.get("initial_balance")
         ))
 
     # Sort by honeypot ID to maintain consistent order
@@ -293,6 +456,26 @@ async def enable_honeypot(honeypot_id: str):
     return {"message": f"Honeypot {honeypot_id} has been enabled"}
 
 
+@router.post("/honeypots/{honeypot_id}/star")
+async def toggle_honeypot_star(honeypot_id: str):
+    """Toggle the starred status of a honeypot."""
+    # Check if honeypot exists
+    if honeypot_id not in honeypot_configs:
+        raise HTTPException(status_code=404, detail="Honeypot not found")
+    
+    # Toggle starred status
+    current_starred = honeypot_configs[honeypot_id].get("starred", False)
+    honeypot_configs[honeypot_id]["starred"] = not current_starred
+    
+    action = "starred" if not current_starred else "unstarred"
+    logger.info(f"⭐ Honeypot {honeypot_id} ({honeypot_configs[honeypot_id].get('name', 'Unknown')}) {action}")
+    
+    return {
+        "message": f"Honeypot {honeypot_id} {action}",
+        "starred": not current_starred
+    }
+
+
 @router.delete("/honeypots/{honeypot_id}")
 async def delete_honeypot(honeypot_id: str):
     """Delete a specific honeypot permanently."""
@@ -353,6 +536,8 @@ async def get_system_settings():
 @router.post("/honeypots/deploy")
 async def deploy_honeypot(request: DeployHoneypotRequest):
     """Deploy a new honeypot with the specified configuration."""
+    logger.info(f"🚀 Deploying new honeypot: {request.name} on {request.blockchain}")
+    
     # Generate new honeypot ID - find the next available number
     existing_ids = list(honeypot_configs.keys())
     existing_nums = []
@@ -370,6 +555,18 @@ async def deploy_honeypot(request: DeployHoneypotRequest):
     
     new_honeypot_id = f"honeypot_{new_id_num}"
 
+    # Generate wallet address based on blockchain
+    import secrets
+    if request.blockchain == "ethereum":
+        wallet_address = f"0x{secrets.token_hex(20)}"
+    elif request.blockchain == "bitcoin":
+        wallet_address = f"bc1q{secrets.token_hex(16)[:32]}"
+    else:  # quantum
+        wallet_address = f"0x{secrets.token_hex(20)}"
+    
+    # Set initial balance based on blockchain
+    initial_balance = 1.0 if request.blockchain == "ethereum" else 0.01 if request.blockchain == "bitcoin" else 100.0
+
     # Store the configuration
     honeypot_configs[new_honeypot_id] = {
         "name": request.name,
@@ -381,7 +578,14 @@ async def deploy_honeypot(request: DeployHoneypotRequest):
         "description": request.description or "",
         "interaction_count": 0,
         "last_interaction": None,
-        "threat_indicators": []
+        "threat_indicators": [],
+        "starred": False,
+        "created_at": datetime.utcnow(),
+        "activated_at": datetime.utcnow(),
+        "wallet_address": wallet_address,
+        "initial_balance": initial_balance,
+        "current_balance": initial_balance,
+        "status": "active"
     }
 
     # In a real implementation, this would:
@@ -390,6 +594,20 @@ async def deploy_honeypot(request: DeployHoneypotRequest):
     # 3. Configure network routing and security policies
     # 4. Initialize threat detection algorithms
     # 5. Set up logging and alerting systems
+
+    # Log successful deployment
+    logger.info(f"✅ Honeypot deployed successfully: {new_honeypot_id} ({request.name})")
+    logger.info(f"📍 Wallet address: {wallet_address}")
+    logger.info(f"💰 Initial balance: {initial_balance} {request.blockchain}")
+    
+    print(f"\n🎯 NEW HONEYPOT DEPLOYED:")
+    print(f"   ID: {new_honeypot_id}")
+    print(f"   Name: {request.name}")
+    print(f"   Blockchain: {request.blockchain}")
+    print(f"   Wallet: {wallet_address}")
+    print(f"   Balance: {initial_balance}")
+    print(f"   Protection: {request.protection_type}")
+    print(f"   Status: ACTIVE\n")
 
     # For now, we'll just acknowledge the deployment
     return {
@@ -449,6 +667,23 @@ async def record_interaction(honeypot_id: str, interaction: RecordInteractionReq
             threat_indicators.append(interaction.interaction_type)
             honeypot_configs[honeypot_id]["threat_indicators"] = threat_indicators
     
+    # Log the interaction
+    honeypot_name = honeypot_configs[honeypot_id].get("name", "Unknown")
+    logger.info(f"🔍 Interaction recorded for {honeypot_id} ({honeypot_name})")
+    logger.info(f"   Type: {interaction.interaction_type}")
+    logger.info(f"   Source: {interaction.source_ip}")
+    logger.info(f"   Threat: {interaction.threat_level}")
+    logger.info(f"   Auto-response: {auto_responded}")
+    
+    if interaction.threat_level in ["high", "critical"]:
+        print(f"\n⚠️  HIGH THREAT INTERACTION DETECTED:")
+        print(f"   Honeypot: {honeypot_name} ({honeypot_id})")
+        print(f"   Type: {interaction.interaction_type}")
+        print(f"   Source IP: {interaction.source_ip}")
+        print(f"   Threat Level: {interaction.threat_level.upper()}")
+        print(f"   Amount: {interaction.amount}")
+        print(f"   Auto-responded: {auto_responded}\n")
+    
     return {
         "message": "Interaction recorded successfully",
         "interaction_id": interaction_id,
@@ -499,24 +734,140 @@ async def simulate_honeypot_interaction(honeypot_id: str):
     if honeypot_id not in honeypot_configs:
         raise HTTPException(status_code=404, detail="Honeypot not found")
     
+    honeypot_name = honeypot_configs[honeypot_id].get("name", "Unknown")
+    logger.info(f"🎲 Simulating interaction for {honeypot_id} ({honeypot_name})")
+    
     import random
     
     # Generate random interaction data
     interaction_types = ["connection_attempt", "transaction", "scan", "probe", "suspicious_activity"]
     threat_levels = ["low", "medium", "high", "critical"]
     
+    selected_type = random.choice(interaction_types)
+    selected_threat = random.choice(threat_levels)
+    
     simulated_interaction = RecordInteractionRequest(
-        interaction_type=random.choice(interaction_types),
+        interaction_type=selected_type,
         source_ip=f"192.168.{random.randint(1, 255)}.{random.randint(1, 255)}",
         source_address=f"0x{''.join(random.choices('0123456789abcdef', k=40))}",
         amount=random.uniform(0.01, 100.0),
         details={
             "user_agent": "Suspicious Bot 1.0",
             "port": random.randint(1000, 9999),
-            "protocol": random.choice(["HTTP", "HTTPS", "TCP", "UDP"])
+            "protocol": random.choice(["HTTP", "HTTPS", "TCP", "UDP"]),
+            "simulated": True
         },
-        threat_level=random.choice(threat_levels)
+        threat_level=selected_threat
     )
+    
+    print(f"🎭 SIMULATING INTERACTION:")
+    print(f"   Honeypot: {honeypot_name} ({honeypot_id})")
+    print(f"   Type: {selected_type}")
+    print(f"   Threat: {selected_threat}")
+    print(f"   Source: {simulated_interaction.source_ip}")
     
     # Record the simulated interaction
     return await record_interaction(honeypot_id, simulated_interaction)
+
+
+@router.get("/debug/system-status")
+async def get_system_debug_status():
+    """Get detailed system status for debugging."""
+    active_count = sum(1 for config in honeypot_configs.values() if config.get("status") == "active")
+    triggered_count = sum(1 for config in honeypot_configs.values() if config.get("status") == "triggered")
+    total_balance = sum(config.get("current_balance", 0) for config in honeypot_configs.values())
+    total_interactions = sum(config.get("interaction_count", 0) for config in honeypot_configs.values())
+    
+    status = {
+        "total_honeypots": len(honeypot_configs),
+        "active_honeypots": active_count,
+        "triggered_honeypots": triggered_count,
+        "total_balance": total_balance,
+        "total_interactions": total_interactions,
+        "total_recorded_interactions": len(honeypot_interactions),
+        "monitoring_active": balance_check_task is not None and not balance_check_task.done(),
+        "honeypots": {
+            honeypot_id: {
+                "name": config.get("name"),
+                "status": config.get("status"),
+                "balance": config.get("current_balance"),
+                "interactions": config.get("interaction_count", 0),
+                "starred": config.get("starred", False),
+                "wallet": config.get("wallet_address")
+            }
+            for honeypot_id, config in honeypot_configs.items()
+        }
+    }
+    
+    print(f"\n🔍 SYSTEM DEBUG STATUS:")
+    print(f"   Total honeypots: {len(honeypot_configs)}")
+    print(f"   Active: {active_count}, Triggered: {triggered_count}")
+    print(f"   Total balance: {total_balance:.4f}")
+    print(f"   Total interactions: {total_interactions}")
+    print(f"   Monitoring task running: {status['monitoring_active']}")
+    print()
+    
+    return status
+
+
+@router.post("/debug/trigger-drain/{honeypot_id}")
+async def trigger_manual_drain(honeypot_id: str):
+    """Manually trigger a fund drain for testing purposes."""
+    if honeypot_id not in honeypot_configs:
+        raise HTTPException(status_code=404, detail="Honeypot not found")
+    
+    config = honeypot_configs[honeypot_id]
+    if config.get("status") != "active":
+        raise HTTPException(status_code=400, detail="Honeypot is not active")
+    
+    current_balance = config.get("current_balance", 0)
+    if current_balance <= 0:
+        raise HTTPException(status_code=400, detail="Honeypot already has no balance")
+    
+    # Manually trigger drain
+    previous_balance = current_balance
+    config["current_balance"] = 0
+    config["status"] = "triggered"
+    config["last_interaction"] = datetime.utcnow()
+    
+    # Record the manual drain
+    interaction_id = f"int_{len(honeypot_interactions)}_{honeypot_id}"
+    drain_interaction = {
+        "id": interaction_id,
+        "honeypot_id": honeypot_id,
+        "interaction_type": "manual_funds_drained",
+        "source_ip": "127.0.0.1",
+        "source_address": "manual_trigger",
+        "amount": previous_balance,
+        "details": {
+            "message": "Manually triggered fund drain for testing",
+            "previous_balance": previous_balance,
+            "new_balance": 0,
+            "manual": True
+        },
+        "timestamp": datetime.utcnow(),
+        "threat_level": "critical",
+        "auto_responded": config.get("auto_response", False)
+    }
+    honeypot_interactions.append(drain_interaction)
+    config["interaction_count"] += 1
+    
+    if "funds_drained" not in config.get("threat_indicators", []):
+        config["threat_indicators"].append("funds_drained")
+    
+    honeypot_name = config.get("name", "Unknown")
+    alert_msg = f"🧪 MANUAL TEST: Honeypot {honeypot_id} ({honeypot_name}) DRAINED"
+    
+    logger.error(alert_msg)
+    print(f"\n{'='*80}")
+    print(alert_msg)
+    print(f"💸 Amount drained: {previous_balance}")
+    print(f"🔬 This was a manual test trigger")
+    print(f"{'='*80}\n")
+    
+    return {
+        "message": f"Successfully drained {previous_balance} from {honeypot_id}",
+        "previous_balance": previous_balance,
+        "honeypot_name": honeypot_name,
+        "interaction_id": interaction_id
+    }

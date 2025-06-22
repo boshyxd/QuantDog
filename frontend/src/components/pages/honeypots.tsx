@@ -233,6 +233,21 @@ export function HoneypotsPage() {
       console.error('Failed to delete honeypot:', err)
     }
   }
+
+  // Handle star toggle
+  const handleStarToggle = async (honeypotId: string) => {
+    try {
+      const result = await apiService.toggleHoneypotStar(honeypotId)
+      // Update local state immediately for better UX
+      setHoneypots(prev => prev.map(hp => 
+        hp.id === honeypotId ? { ...hp, starred: result.starred } : hp
+      ))
+    } catch (err) {
+      console.error('Failed to toggle star:', err)
+      // Refresh to get correct state
+      await fetchHoneypots()
+    }
+  }
   
   // Handle deploy new honeypot
   const handleDeployHoneypot = async () => {
@@ -279,7 +294,7 @@ export function HoneypotsPage() {
     <TooltipProvider>
       <motion.div 
         ref={ref}
-        className="flex-1 bg-gray-950/80 text-white"
+        className="flex-1 bg-gray-950/60 text-white"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -621,7 +636,7 @@ export function HoneypotsPage() {
                             }}
                           >
                             <td className="px-6 py-4">
-                              <Button variant="ghost" size="sm" className="p-0 h-auto">
+                              <Button variant="ghost" size="sm" className="p-0 h-auto" onClick={() => handleStarToggle(asset.id)}>
                                 <Star className={`w-4 h-4 ${asset.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400'}`} />
                               </Button>
                             </td>
