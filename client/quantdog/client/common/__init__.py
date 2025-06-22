@@ -17,6 +17,8 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 class Settings(BaseSettings):
     packet_length: int = 1500
     pqc_port: int = 11777
+    kem_port: int = 11778
+    kemalg: str = "ML-KEM-512"
 
 
 @cache

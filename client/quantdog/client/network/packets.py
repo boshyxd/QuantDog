@@ -1,13 +1,23 @@
 import os
+import socket
 import sys
 import uuid
+from functools import cache
 
 import structlog
 from scapy.layers.inet import IP, TCP, UDP
 from scapy.packet import Packet
 
 from quantdog.client.common import logger, settings
-from quantdog.client.security import kemalg
+
+
+@cache
+def get_secret_cache() -> dict[str, bytes]:
+    return dict()
+
+
+# Probably want to convert this to an LRU cache somehow
+SECRET_CACHE = get_secret_cache()
 
 
 def process_packet(packet: Packet):
@@ -18,6 +28,25 @@ def process_packet(packet: Packet):
         process_tcp_packet(packet, tcp)
     # if udp is not None:
     #     process_udp_packet(packet, udp)
+
+
+def add_kem_secret(dst_ip: str):
+    dst_kem_port = settings.kem_port
+
+    try:
+        kem_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        kem_client.settimeout(5)
+        kem_client.connect((dst_ip, dst_kem_port))
+        logger.debug("Connected for KEM encryption!")
+        return True
+    except TimeoutError:
+        logger.debug("KEM port not found on %s.", dst_ip)
+        structlog.contextvars.clear_contextvars()
+        return False
+    except Exception as e:
+        logger.exception(str(e))
+        structlog.contextvars.clear_contextvars()
+        raise
 
 
 def process_tcp_packet(packet: Packet, tcp: Packet):
@@ -40,10 +69,18 @@ def process_tcp_packet(packet: Packet, tcp: Packet):
     payload_packet = packet.copy()
     transport_packet = packet
 
+    dst_ip = transport_packet[IP].dst
+
+    if dst_ip not in SECRET_CACHE:
+        addition_successful = add_kem_secret(dst_ip)
+        if not addition_successful:
+            return
+
     payload_packet[IP].dst = "127.0.0.1"
     transport_packet[TCP].dport = settings.pqc_port
     payload_layer = transport_packet.lastlayer()
-    logger.debug("Encrypting packet using %s.", kemalg)
+    logger.debug("Encrypting packet using %s.", settings.kemalg)
+
     payload_layer.load = "HEYO"
 
     del transport_packet[IP].len
