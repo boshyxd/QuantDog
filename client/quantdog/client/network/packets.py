@@ -1,6 +1,5 @@
 import os
 import socket
-import sys
 import uuid
 from functools import cache
 
@@ -143,5 +142,5 @@ def packet_listener(tun_fd: int, tun_name: str):
     except Exception as e:
         logger.exception(str(e))
     finally:
+        structlog.contextvars.clear_contextvars()
         logger.info("Shutting down.")
-        sys.exit(0)

@@ -1,6 +1,7 @@
 import threading
 
 import psutil
+import structlog
 
 from quantdog.client.common import check_sudo, logger
 from quantdog.client.network import (
@@ -37,6 +38,12 @@ def main():
             thread.start()
 
         packet_listener(tun_fd, tun_name)
+
+        structlog.contextvars.clear_contextvars()
+        logger.info("Stopping listeners...")
+
+        pqc_listener_tcp.stop()
+        kem_listener.stop()
 
         for thread in listener_threads:
             thread.join()
