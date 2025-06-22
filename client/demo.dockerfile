@@ -22,6 +22,6 @@ FROM base AS prod
 COPY --from=build /app/.venv /app/.venv
 COPY --from=build /app /app
 
-RUN mkdir -p /dev/net && mknod /dev/net/tun c 10 200 && chmod 600 /dev/net/tun
+# RUN mkdir -p /dev/net && mknod /dev/net/tun c 10 200 && chmod 600 /dev/net/tun
 
 CMD [ "/app/.venv/bin/python", "/app/client/main.py" ]

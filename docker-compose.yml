@@ -8,6 +8,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: quantdog
       RABBITMQ_DEFAULT_PASS: quantdog
+    networks:
+      client-demo:
 
   client:
     build:
@@ -18,5 +20,9 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 3
-# networks:
-#   client-demo:
+    networks:
+      client-demo:
+
+networks:
+  client-demo:
+    driver: bridge

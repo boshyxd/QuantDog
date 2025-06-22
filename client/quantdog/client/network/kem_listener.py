@@ -1,7 +1,6 @@
 import logging
 import socket
 import threading
-from collections.abc import Callable
 
 from quantdog.client.common import logger, settings
 
@@ -16,7 +15,6 @@ class KEMListener:
         self.kem_port = kem_port
         self.socket: socket.socket | None = None
         self.is_running = False
-        self.connection_handler: Callable | None = None
 
     def start(self):
         """Start the PQC listener."""
@@ -32,7 +30,7 @@ class KEMListener:
             self.socket.listen(5)
             self.is_running = True
 
-            logger.info(f"TCP Listener started on {self.host}:{self.kem_port}")
+            logger.info(f"KEM Listener started on {self.host}:{self.kem_port}")
 
             while self.is_running:
                 try:

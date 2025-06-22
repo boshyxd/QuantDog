@@ -1,7 +1,6 @@
 import logging
 import socket
 import threading
-from typing import Callable, Optional
 
 from quantdog.client.common import logger, settings
 
@@ -14,9 +13,8 @@ class PQCListenerTCP:
     ):
         self.host = host
         self.pqc_port = pqc_port
-        self.socket: Optional[socket.socket] = None
+        self.socket: socket.socket | None = None
         self.is_running = False
-        self.connection_handler: Optional[Callable] = None
 
     def start(self):
         """Start the PQC listener."""
