@@ -15,6 +15,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 
 
 class Settings(BaseSettings):
+    packet_length: int = 1500
     pqc_port: int = 11777
 
 

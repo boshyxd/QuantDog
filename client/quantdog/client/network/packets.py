@@ -1,23 +1,23 @@
 import os
 import sys
+import uuid
 
 import structlog
 from scapy.layers.inet import IP, TCP, UDP
 from scapy.packet import Packet
 
-from quantdog.client.common import logger
+from quantdog.client.common import logger, settings
+from quantdog.client.security import kemalg
 
 
 def process_packet(packet: Packet):
-    logger.debug("Received packet: %s", packet.summary())
-
     tcp = packet.getlayer(TCP)
     udp = packet.getlayer(UDP)
 
     if tcp is not None:
         process_tcp_packet(packet, tcp)
-    if udp is not None:
-        process_udp_packet(packet, udp)
+    # if udp is not None:
+    #     process_udp_packet(packet, udp)
 
 
 def process_tcp_packet(packet: Packet, tcp: Packet):
@@ -29,9 +29,46 @@ def process_tcp_packet(packet: Packet, tcp: Packet):
         src_ip=packet[IP].src,
         dst_port=packet[TCP].dport,
         dst_ip=packet[IP].dst,
+        len=packet[IP].len,
+        payload=tcp.payload,
+        packet_request_id=uuid.uuid4().hex,
+    )
+
+    logger.debug("TCP packet identified.")
+
+    # This is going to be modified and encrypted as a payload
+    payload_packet = packet.copy()
+    transport_packet = packet
+
+    payload_packet[IP].dst = "127.0.0.1"
+    transport_packet[TCP].dport = settings.pqc_port
+    payload_layer = transport_packet.lastlayer()
+    logger.debug("Encrypting packet using %s.", kemalg)
+    payload_layer.load = "HEYO"
+
+    del transport_packet[IP].len
+    del transport_packet[IP].chksum
+    del transport_packet[TCP].chksum
+
+    transport_packet = IP(transport_packet.build())
+
+    structlog.contextvars.bind_contextvars(
+        src_port=transport_packet[TCP].sport,
+        src_ip=transport_packet[IP].src,
+        dst_port=transport_packet[TCP].dport,
+        dst_ip=transport_packet[IP].dst,
+        len=transport_packet[IP].len,
         payload=tcp.payload,
     )
-    logger.debug("TCP packet identified.")
+
+    logger.debug("Modifications complete.")
+
+    # TODO
+    # 1. Identify whether a Quantdog is running on that server
+    # 2. Perform a key exchange with the Quantdog server
+    # 3. Send the modified packet
+    #
+    # Maybe I should be encrypting the *entire packet?*
     structlog.contextvars.clear_contextvars()
 
 
@@ -46,6 +83,11 @@ def process_udp_packet(packet: Packet, udp: Packet):
         dst_ip=packet[IP].dst,
         payload=udp.payload,
     )
+
+    raw_packet_bytes = bytes(packet)
+
+    structlog.contextvars.bind_contextvars()
+
     logger.debug("UDP packet identified.")
     structlog.contextvars.clear_contextvars()
 
@@ -54,12 +96,15 @@ def packet_listener(tun_fd: int, tun_name: str):
     logger.info("Server running. Use CTRL+C to exit.")
     try:
         while True:
-            raw_packet = os.read(tun_fd, 1500)
+            raw_packet = os.read(tun_fd, settings.packet_length)
             packet = IP(raw_packet)
-            process_packet(packet)
+            processed_packet = process_packet(packet)
 
     except KeyboardInterrupt:
         pass
+
+    except Exception as e:
+        logger.exception(str(e))
     finally:
         logger.info("Shutting down.")
         sys.exit(0)
